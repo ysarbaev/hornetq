@@ -8,5 +8,4 @@ Description: Message Queue Server, supports JMS, AMQP, STOM, REST.
 Depends: openjdk-7-jdk, libaio1
 Priority: optional
 Origin: https://www.github.com/ysarbaev/hornetq
-X-Source: https://github.com/ysarbaev/hornetq/zipball/master
 

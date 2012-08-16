@@ -2,34 +2,34 @@
 
 # Builds deb package for HornetQ server
 
-HORNETQ_VERSION = grep "<version>" pom.xml | head -n 1 | sed "s/[<,>,version,\/]//g"
+HORNETQ_VERSION=`cat pom.xml | grep '<version>' | head -n 1 | sed 's/[<,>,version,\/]//g' | sed 's/\s//g'`
 
-SOURCE_DIR = "./distribution/hornetq/target/$HORNETQ_VERSION-bin/$HORNETQ_VERSION"
+SOURCE_DIR=distribution/hornetq/target/hornetq-$HORNETQ_VERSION-bin/hornetq-$HORNETQ_VERSION
 
-TARGET_DIR = "./deb"
+TARGET_DIR=deb
 
-DEB_DIR = "$TARGET_DIR/DEBIAN"
+DEB_DIR=$TARGET_DIR/DEBIAN
 
-DEB_NAME = "hornetq_$HORNETQ_VERSION_all.deb"
+DEB_NAME="hornetq_"$HORNETQ_VERSION"_all.deb"
 
-CONFIG_TEMPLATES_DIR = "$SOURCE_DIR/config/standalone/non-clustered"
+CONFIG_TEMPLATES_DIR=$SOURCE_DIR/config/stand-alone/non-clustered
 
-ETC = "$TARGET_DIR/etc/hornetq"
+ETC=$TARGET_DIR/etc/hornetq
 
-LIB = "$TARGET_DIR/usr/lib/hornetq"
+LIB=$TARGET_DIR/usr/lib/hornetq
 
-if [ ! -e $SOURCE_DIR ] then
-	echo "Can not find $SOURCE_DIR, try to run mvn install -Prelease package"
-	exit 1
+if [ ! -e $SOURCE_DIR ]; then
+	echo "Can not find $SOURCE_DIR, try to run mvn install -Prelease package";
+	exit 6
 fi
 
-mkdir $TARGET_DIR
+mkdir -p $TARGET_DIR
 
 # Copy template stuff
 cp -r DEBIAN $TARGET_DIR
 
 # Control
-sed -i "s/VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
+sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
 
 # Copyright
 cp "$SOURCE_DIR/licenses/LGPL.txt" "$DEB_DIR/copyright"
@@ -40,22 +40,23 @@ touch "$DEB_DIR/changelog"
 # Conffiles
 mkdir -p "$ETC/config"
 
-cp "$CONFIG_TEMPLATES_DIR/*" "$ETC/config"
+cp $CONFIG_TEMPLATES_DIR/* $ETC/config/
 
-ls $ETC | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB_DIR/conffiles"
+ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB_DIR/conffiles"
 
-mkdir "$LIB"
+mkdir -p $LIB
 
-cp -r "$SOURCE_DIR/lib" "$LIB"
-cp -r "$SOURCE_DIR/licenses" "$LIB"
-cp -r "$SOURCE_DIR/schemas" "$LIB"
+cp -r $SOURCE_DIR/lib $LIB
+cp -r $SOURCE_DIR/licenses $LIB
+cp -r $SOURCE_DIR/schema $LIB
 
-cp "$SOURCE_DIR/bin/*.so" "$LIB"
+cp $SOURCE_DIR/bin/*.so $LIB
 
 
 # Build deb
 
 fakeroot dpkg-deb --build $TARGET_DIR
 
-mv "*.deb" $DEB_NAME
+mv $TARGET_DIR."deb" $DEB_NAME
 
+rm -rf $TARGET_DIR
