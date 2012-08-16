@@ -1,3 +1,5 @@
+*.deb
+
 #idea files
 hornetq-pom.ipr
 hornetq-pom.iws
