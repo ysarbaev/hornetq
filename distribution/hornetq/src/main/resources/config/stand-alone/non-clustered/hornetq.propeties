@@ -1,0 +1,5 @@
+-Dhornetq.config.dir=/etc/hornetq 
+-Djava.util.logging.manager=org.jboss.logmanager.LogManager 
+-Dlogging.configuration=file:///etc/hornetq/logging.properties 
+-Djava.library.path=/usr/lib/hornetq"
+-Ddata.dir=/var/hornetq
