@@ -44,6 +44,7 @@ cp $CONFIG_TEMPLATES_DIR/* $ETC/config/
 
 ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB_DIR/conffiles"
 
+# All jars, so, etc
 mkdir -p $LIB
 
 cp -r $SOURCE_DIR/lib $LIB
@@ -52,11 +53,14 @@ cp -r $SOURCE_DIR/schema $LIB
 
 cp $SOURCE_DIR/bin/*.so $LIB
 
+# Check sums
+md5deep -rl usr >> DEBIAN/md5sums
+md5deep -rl etc >> DEBIAN/md5sums
 
 # Build deb
-
 fakeroot dpkg-deb --build $TARGET_DIR
 
-mv $TARGET_DIR."deb" $DEB_NAME
+mv $TARGET_DIR".deb" $DEB_NAME
 
+# Clean up
 rm -rf $TARGET_DIR
