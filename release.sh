@@ -43,7 +43,7 @@ cp -r deb/* $TARGET
 sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB/control"
 
 # Conffiles
-cp $CONFIG_TEMPLATES/* $ETC/config/
+cp $CONFIG_TEMPLATES/* $ETC/
 
 # Copyright
 cat $SOURCE/licenses/LICENSE.txt > $COPYRIGHT/copyright
