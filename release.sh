@@ -31,7 +31,6 @@ fi
 
 mkdir -p $DEB
 mkdir -p $ETC
-mkdir -p $ETC/config
 mkdir -p $LIB
 mkdir -p $JARS
 mkdir -p $COPYRIGHT
@@ -48,7 +47,7 @@ cp $CONFIG_TEMPLATES/* $ETC/
 # Copyright
 cat $SOURCE/licenses/LICENSE.txt > $COPYRIGHT/copyright
 
-ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB/conffiles"
+ls $ETC/ | xargs -n1 echo "/etc/hornetq/" | sed "s/\s//" > "$DEB/conffiles"
 echo "/etc/init.d/hornetq" >> "$DEB/conffiles"
 
 # All jars, so, etc
