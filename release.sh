@@ -18,6 +18,8 @@ ETC=$TARGET_DIR/etc/hornetq
 
 LIB=$TARGET_DIR/usr/lib/hornetq
 
+JARS=$TARGET_DIR/usr/share/hornetq
+
 if [ ! -e $SOURCE_DIR ]; then
 	echo "Can not find $SOURCE_DIR, try to run mvn install -Prelease package";
 	exit 6
@@ -31,23 +33,18 @@ cp -r deb/* $TARGET_DIR
 # Control
 sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
 
-# Copyright
-cp "$SOURCE_DIR/licenses/LGPL.txt" "$DEB_DIR/copyright"
-
-# Changelog
-touch "$DEB_DIR/changelog"
-
 # Conffiles
 mkdir -p "$ETC/config"
 
 cp $CONFIG_TEMPLATES_DIR/* $ETC/config/
 
 ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB_DIR/conffiles"
+echo "/etc/init.d/hornetq" >> "DEB_DIR/conffiles"
 
 # All jars, so, etc
 mkdir -p $LIB
 
-cp -r $SOURCE_DIR/lib $LIB
+cp -r $SOURCE_DIR/lib $JARS
 cp -r $SOURCE_DIR/licenses $LIB
 cp -r $SOURCE_DIR/schema $LIB
 
@@ -70,7 +67,11 @@ find $TARGET_DIR/usr -type d | xargs -n1 chmod 0755
 find $TARGET_DIR/etc -type f | xargs -n1 chmod 0644
 find $TARGET_DIR/usr -type f | xargs -n1 chmod 0644
 
+chmod 0644 $DEB_DIR/conffiles
+chmod 0644 $DEB_DIR/md5sums
+
 chmod 0755 $TARGET_DIR/etc/init.d/hornetq 
+
 
 # Build deb
 fakeroot dpkg-deb --build $TARGET_DIR
