@@ -19,6 +19,8 @@ USER=hornetq
 
 CLASSPATH="$HORNETQ_HOME/schemas:$CONFIG"
 
+JARS=/usr/share/hornetq/lib
+
 if [ ! -e $CONFIG ]; then
     echo "$CONFIG does not exists";
     exit 6;
@@ -29,7 +31,7 @@ if [ ! -r $CONFIG ]; then
     exit 6;
 fi
 
-for i in "ls $HORNETQ_HOME/lib/*.jar"; do
+for i in "ls $JARS/*.jar"; do
     CLASSPATH=$i:$CLASSPATH
 done
 
@@ -39,7 +41,7 @@ HORNETQ_ARGS=cat "$CONFIG/hornetq.properties"
 
 BOOSTRAP_CLASS="org.hornetq.integration.bootstrap.HornetQBootstrapServer"
 
-RETVAL = 0
+RETVAL= 0
 
 start() {
     echo -n "Starting HornetQ "
