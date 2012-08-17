@@ -4,82 +4,91 @@
 
 HORNETQ_VERSION=`cat pom.xml | grep '<version>' | head -n 1 | sed 's/[<,>,version,\/]//g' | sed 's/\s//g'`
 
-SOURCE_DIR=distribution/hornetq/target/hornetq-$HORNETQ_VERSION-bin/hornetq-$HORNETQ_VERSION
+SOURCE=distribution/hornetq/target/hornetq-$HORNETQ_VERSION-bin/hornetq-$HORNETQ_VERSION
 
-TARGET_DIR=.deb
+NAME=hornetq
 
-DEB_DIR=$TARGET_DIR/DEBIAN
+TARGET=.deb
+
+DEB=$TARGET/DEBIAN
 
 DEB_NAME="hornetq_"$HORNETQ_VERSION"_all.deb"
 
-CONFIG_TEMPLATES_DIR=$SOURCE_DIR/config/stand-alone/non-clustered
+CONFIG_TEMPLATES=$SOURCE/config/stand-alone/non-clustered
 
-ETC=$TARGET_DIR/etc/hornetq
+ETC=$TARGET/etc/$NAME
 
-LIB=$TARGET_DIR/usr/lib/hornetq
+LIB=$TARGET/usr/lib/$NAME
 
-JARS=$TARGET_DIR/usr/share/hornetq
+JARS=$TARGET/usr/share/$NAME
 
-if [ ! -e $SOURCE_DIR ]; then
-	echo "Can not find $SOURCE_DIR, try to run mvn install -Prelease package";
+COPYRIGHT=$TARGET/usr/share/doc/$NAME
+
+if [ ! -e $SOURCE ]; then
+	echo "Can not find $SOURCE, try to run mvn install -Prelease package";
 	exit 6
 fi
 
-mkdir -p $TARGET_DIR
+mkdir -p $DEB
+mkdir -p $ETC
+mkdir -p $ETC/config
+mkdir -p $LIB
+mkdir -p $JARS
+mkdir -p $COPYRIGHT
 
 # Copy template stuff
-cp -r deb/* $TARGET_DIR
+cp -r deb/* $TARGET
 
 # Control
-sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
+sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB/control"
 
 # Conffiles
-mkdir -p "$ETC/config"
+cp $CONFIG_TEMPLATES/* $ETC/config/
 
-cp $CONFIG_TEMPLATES_DIR/* $ETC/config/
+# Copyright
+cat $SOURCE/licenses/LICENSE.txt > $COPYRIGHT/copyright
 
-ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB_DIR/conffiles"
-echo "/etc/init.d/hornetq" >> "DEB_DIR/conffiles"
+ls $ETC/config | xargs -n1 echo "/etc/hornetq/config/" | sed "s/\s//" > "$DEB/conffiles"
+echo "/etc/init.d/hornetq" >> "$DEB/conffiles"
 
 # All jars, so, etc
-mkdir -p $LIB
 
-cp -r $SOURCE_DIR/lib $JARS
-cp -r $SOURCE_DIR/licenses $LIB
-cp -r $SOURCE_DIR/schema $LIB
+cp -r $SOURCE/lib $JARS
+cp -r $SOURCE/licenses $LIB
+cp -r $SOURCE/schema $LIB
 
-cp $SOURCE_DIR/bin/*.so $LIB
+cp $SOURCE/bin/*.so $LIB
 
 # Check sums
-CURRENT_DIR=`pwd`
-cd $TARGET_DIR
+CURRENT=`pwd`
+cd $TARGET
 
 md5deep -rl usr >> DEBIAN/md5sums
 md5deep -rl etc >> DEBIAN/md5sums
 
-cd $CURRENT_DIR
+cd $CURRENT
 
 # Permissions
 
-find $TARGET_DIR/etc -type d | xargs -n1 chmod 0755
-find $TARGET_DIR/usr -type d | xargs -n1 chmod 0755
+find $TARGET/etc -type d | xargs -n1 chmod 0755
+find $TARGET/usr -type d | xargs -n1 chmod 0755
 
-find $TARGET_DIR/etc -type f | xargs -n1 chmod 0644
-find $TARGET_DIR/usr -type f | xargs -n1 chmod 0644
+find $TARGET/etc -type f | xargs -n1 chmod 0644
+find $TARGET/usr -type f | xargs -n1 chmod 0644
 
-chmod 0644 $DEB_DIR/conffiles
-chmod 0644 $DEB_DIR/md5sums
+chmod 0644 $DEB/conffiles
+chmod 0644 $DEB/md5sums
 
-chmod 0755 $TARGET_DIR/etc/init.d/hornetq 
+chmod 0755 $TARGET/etc/init.d/hornetq 
 
 
 # Build deb
-fakeroot dpkg-deb --build $TARGET_DIR
+fakeroot dpkg-deb --build $TARGET
 
-mv $TARGET_DIR".deb" $DEB_NAME
+mv $TARGET".deb" $DEB_NAME
 
 # Verify
 lintian $DEB_NAME
 
 # Clean up
-rm -rf $TARGET_DIR
+rm -rf $TARGET
