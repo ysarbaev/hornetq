@@ -19,15 +19,15 @@ USER=hornetq
 
 CLASSPATH="$HORNETQ_HOME/schemas:$CONFIG"
 
-if [ ! -e $CONFIG ] then
+if [ ! -e $CONFIG ]; then
     echo "$CONFIG does not exists";
     exit 6;
-fi;
+fi
 
-if [ ! -r $CONFIG ] then
+if [ ! -r $CONFIG ]; then
     echo "$CONFIG is not readable";
     exit 6;
-fi;
+fi
 
 for i in "ls $HORNETQ_HOME/lib/*.jar"; do
     CLASSPATH=$i:$CLASSPATH
