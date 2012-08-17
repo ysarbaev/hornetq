@@ -54,13 +54,18 @@ cp -r $SOURCE_DIR/schema $LIB
 cp $SOURCE_DIR/bin/*.so $LIB
 
 # Check sums
+cd $TARGET_DIR
 md5deep -rl usr >> DEBIAN/md5sums
 md5deep -rl etc >> DEBIAN/md5sums
+cd ..
 
 # Build deb
 fakeroot dpkg-deb --build $TARGET_DIR
 
 mv $TARGET_DIR".deb" $DEB_NAME
+
+# Verify
+lintian $DEB_NAME
 
 # Clean up
 rm -rf $TARGET_DIR
