@@ -26,7 +26,7 @@ fi
 mkdir -p $TARGET_DIR
 
 # Copy template stuff
-cp -r deb $TARGET_DIR
+cp -r deb/* $TARGET_DIR
 
 # Control
 sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
