@@ -6,7 +6,7 @@ HORNETQ_VERSION=`cat pom.xml | grep '<version>' | head -n 1 | sed 's/[<,>,versio
 
 SOURCE_DIR=distribution/hornetq/target/hornetq-$HORNETQ_VERSION-bin/hornetq-$HORNETQ_VERSION
 
-TARGET_DIR=deb
+TARGET_DIR=.deb
 
 DEB_DIR=$TARGET_DIR/DEBIAN
 
@@ -26,7 +26,7 @@ fi
 mkdir -p $TARGET_DIR
 
 # Copy template stuff
-cp -r DEBIAN $TARGET_DIR
+cp -r deb $TARGET_DIR
 
 # Control
 sed -i "s/\$VERSION/$HORNETQ_VERSION/" "$DEB_DIR/control"
@@ -54,10 +54,23 @@ cp -r $SOURCE_DIR/schema $LIB
 cp $SOURCE_DIR/bin/*.so $LIB
 
 # Check sums
+CURRENT_DIR=`pwd`
 cd $TARGET_DIR
+
 md5deep -rl usr >> DEBIAN/md5sums
 md5deep -rl etc >> DEBIAN/md5sums
-cd ..
+
+cd $CURRENT_DIR
+
+# Permissions
+
+find $TARGET_DIR/etc -type d | xargs -n1 chmod 0755
+find $TARGET_DIR/usr -type d | xargs -n1 chmod 0755
+
+find $TARGET_DIR/etc -type f | xargs -n1 chmod 0644
+find $TARGET_DIR/usr -type f | xargs -n1 chmod 0644
+
+chmod 0755 $TARGET_DIR/etc/init.d/hornetq 
 
 # Build deb
 fakeroot dpkg-deb --build $TARGET_DIR
