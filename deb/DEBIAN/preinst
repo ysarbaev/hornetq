@@ -1,3 +1,11 @@
 #!/bin/bash
 
 adduser --system --no-create-home hornetq
+
+mkdir /var/log/hornetq
+
+mkdir /var/hornetq
+
+chown hornetq:hornetq /var/log/hornetq
+
+chown hornetq:hornetq /var/hornetq
