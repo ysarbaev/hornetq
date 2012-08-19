@@ -37,7 +37,7 @@ if [ ! -r $CONFIG ]; then
     exit 6;
 fi
 
-for i in "ls $JARS/*.jar"; do
+for i in $JARS/*.jar; do
     CLASSPATH=$i:$CLASSPATH
 done
 
@@ -45,25 +45,28 @@ JVM_ARGS=`cat $CONFIG/jvm.properties`
 
 HORNETQ_ARGS=`cat $CONFIG/hornetq.properties`
 
-BOOTSTRAP_CLASS="org.hornetq.integration.bootstrap.HornetQBootstrapServer"
+BOOTSTRAP_CLASS=org.hornetq.integration.bootstrap.HornetQBootstrapServer
 
-INIT_FILE="hornetq-beans.xml"
+INIT_FILE=hornetq-beans.xml
 
-CMD="java -cp $CLASSPATH $JVM_ARGS $HORNETQ_ARGS $BOOTSTRAP_CLASS $INIT_FILE"
+ARGS="-cp $CLASSPATH $JVM_ARGS $HORNETQ_ARGS $BOOTSTRAP_CLASS $INIT_FILE"
 
 
 start() {
 
     echo -n "Starting HornetQ "
-    echo $CMD
 
-    start-stop-daemon --start -b -p $PID_FILE --make-pidfile -u $HORNETQ_USER -g $HORNETQ_GROUP -c $HORNETQ_USER \
-                      -x /bin/bash -- -c "$CMD"
+    start-stop-daemon --start -v -b -p $PID_FILE --make-pidfile -u $HORNETQ_USER -g $HORNETQ_GROUP -c $HORNETQ_USER -x /usr/bin/java -- $ARGS
+
+    echo 
 }
 
 stop() {
     echo -n "Shutting down HornetQ "
+
     start-stop-daemon --stop --user $HORNETQ_USER --pidfile $PID_FILE
+
+    echo
 }
 
 case "$1" in
