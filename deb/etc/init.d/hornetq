@@ -41,27 +41,18 @@ HORNETQ_ARGS= cat "$CONFIG/hornetq.properties"
 
 BOOTSTRAP_CLASS="org.hornetq.integration.bootstrap.HornetQBootstrapServer"
 
+CMD="java $JVM_ARGS $HORNETQ_ARGS -classpath $CLASSPATH $BOOTSTRAP_CLASS hornetq-beans.xml"
 RETVAL="0"
 
 start() {
     echo -n "Starting HornetQ "
-    /bin/bash $USER -c "java $JVM_ARGS $HORNETQ_ARGS -classpath $CLASSPATH $BOOTSTRAP_CLASS hornetq-beans.xml" > /var/log/hornetq/console.log 2>&1 &
-    PID=$!
-    RETVAL=$?
-    if [ $RETVAL = "0" ]; then
-        echo "$PID" > $PID_FILE
-        success
-    else
-        failure
-    fi
-    echo
+
+    start-stop-daemon --start --background --pidfile $PID_FILE --make-pidfile --user $USER --name $USER -x $CMD > /dev/null
 }
 
 stop() {
     echo -n "Shutting down HornetQ "
-    killproc -p "$PID_FILE" -d 20 hornetq
-    RETVAL=$?
-    echo
+    start-stop-daemon --stop --user $USER --pidfile $PID_FILE
 }
 
 case "$1" in
