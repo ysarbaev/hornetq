@@ -47,12 +47,18 @@ HORNETQ_ARGS=`cat $CONFIG/hornetq.properties`
 
 BOOTSTRAP_CLASS="org.hornetq.integration.bootstrap.HornetQBootstrapServer"
 
+INIT_FILE="hornetq-beans.xml"
+
+CMD="java -cp $CLASSPATH $JVM_ARGS $HORNETQ_ARGS $BOOTSTRAP_CLASS $INIT_FILE"
+
 
 start() {
+
     echo -n "Starting HornetQ "
+    echo $CMD
 
     start-stop-daemon --start -b -p $PID_FILE --make-pidfile -u $HORNETQ_USER -g $HORNETQ_GROUP -c $HORNETQ_USER \
-                      -x /bin/bash -- -c "/usr/bin/java -cp $CLASSPATH $JVM_ARGS $HORNETQ_ARGS $BOOTSTRAP_CLASS hornetq-beans.xml"
+                      -x /bin/bash -- -c "$CMD"
 }
 
 stop() {
