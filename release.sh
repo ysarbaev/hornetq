@@ -80,6 +80,8 @@ chmod 0644 $DEB/md5sums
 
 chmod 0755 $TARGET/etc/init.d/hornetq 
 
+chmod 0755 $DEB/preinst
+chmod 0755 $DEB/postrm
 
 # Build deb
 fakeroot dpkg-deb --build $TARGET
