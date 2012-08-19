@@ -9,17 +9,23 @@
 ### END INIT INFO
 
 # Check for existence of needed config file and read it
-CONFIG=/etc/hornetq
+NAME=hornetq
 
-HORNETQ_HOME=/usr/lib/hornetq
+CONFIG=/etc/$NAME
 
-PID_FILE=/var/run/hornetq.pid
+HORNETQ_HOME=/usr/lib/$NAME
 
-USER=hornetq
+PID_FILE=/var/run/$NAME.pid
+
+HORNETQ_USER=$NAME
+
+HORNETQ_GROUP=$NAME
 
 CLASSPATH="$HORNETQ_HOME/schemas:$CONFIG"
 
-JARS=/usr/share/hornetq/lib
+JARS=/usr/share/$NAME/lib
+
+#PATH=/usr/bin:/bin:/usr/sbin
 
 if [ ! -e $CONFIG ]; then
     echo "$CONFIG does not exists";
@@ -35,24 +41,23 @@ for i in "ls $JARS/*.jar"; do
     CLASSPATH=$i:$CLASSPATH
 done
 
-JVM_ARGS= cat "$CONFIG/jvm.properties"
+JVM_ARGS=`cat $CONFIG/jvm.properties`
 
-HORNETQ_ARGS= cat "$CONFIG/hornetq.properties"
+HORNETQ_ARGS=`cat $CONFIG/hornetq.properties`
 
 BOOTSTRAP_CLASS="org.hornetq.integration.bootstrap.HornetQBootstrapServer"
 
-CMD="java $JVM_ARGS $HORNETQ_ARGS -classpath $CLASSPATH $BOOTSTRAP_CLASS hornetq-beans.xml"
-RETVAL="0"
 
 start() {
     echo -n "Starting HornetQ "
 
-    start-stop-daemon --start --background --pidfile $PID_FILE --make-pidfile --user $USER --name $USER -x $CMD > /dev/null
+    start-stop-daemon --start -b -p $PID_FILE --make-pidfile -u $HORNETQ_USER -g $HORNETQ_GROUP -c $HORNETQ_USER \
+                      -x /bin/bash -- -c "/usr/bin/java -cp $CLASSPATH $JVM_ARGS $HORNETQ_ARGS $BOOTSTRAP_CLASS hornetq-beans.xml"
 }
 
 stop() {
     echo -n "Shutting down HornetQ "
-    start-stop-daemon --stop --user $USER --pidfile $PID_FILE
+    start-stop-daemon --stop --user $HORNETQ_USER --pidfile $PID_FILE
 }
 
 case "$1" in

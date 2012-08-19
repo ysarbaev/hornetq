@@ -89,7 +89,9 @@ fakeroot dpkg-deb --build $TARGET
 mv $TARGET".deb" $DEB_NAME
 
 # Verify
+if [ $1 eq "--verify" ]; then
 lintian $DEB_NAME
+fi
 
 # Clean up
 rm -rf $TARGET
