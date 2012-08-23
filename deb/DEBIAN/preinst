@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ ! -e "/etc/init.d/hornetq" ]; then
+	service hornetq stop
+fi
+
+adduser --system --no-create-home hornetq
+addgroup --system hornetq
+
+mkdir /var/log/hornetq
+
+mkdir /var/hornetq
+
+chown hornetq:hornetq /var/log/hornetq
+
+chown hornetq:hornetq /var/hornetq

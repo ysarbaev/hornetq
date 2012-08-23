@@ -1,0 +1,12 @@
+Package: hornetq
+Version: $VERSION
+Provides: hornetq
+Maintainer: Yuri Sarbaev <yuri.sarbaev@gmail.com>
+Architecture: all
+Section: comm
+Description: Message Queue Server, supports JMS, AMQP, STOM, REST.
+ Fast, writtent in java message queue server.
+Depends: openjdk-7-jdk, libaio1
+Priority: optional
+Origin: https://www.github.com/ysarbaev/hornetq
+
