@@ -29,8 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.hornetq.api.core.HornetQDuplicateIdException;
-import org.hornetq.api.core.Message;
 import org.hornetq.api.core.HornetQNonExistentQueueException;
+import org.hornetq.api.core.Message;
 import org.hornetq.api.core.Pair;
 import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.management.ManagementHelper;
@@ -101,7 +101,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
    private final ManagementService managementService;
 
-   private final Reaper reaperRunnable = new Reaper();
+   private Reaper reaperRunnable;
 
    private volatile Thread reaperThread;
 
@@ -170,6 +170,9 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
    public synchronized void start() throws Exception
    {
+      if (started)
+         return;
+
       managementService.addNotificationListener(this);
 
       if (pagingManager != null)
@@ -194,7 +197,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
       managementService.removeNotificationListener(this);
 
-      reaperRunnable.stop();
+      if (reaperRunnable != null)
+         reaperRunnable.stop();
 
       if (reaperThread != null)
       {
@@ -601,6 +605,8 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
 
       AtomicBoolean startedTX = new AtomicBoolean(false);
 
+      applyExpiryDelay(message, address);
+
       if (!checkDuplicateID(message, context, rejectDuplicates, startedTX))
       {
          return;
@@ -683,6 +689,22 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       if (startedTX.get())
       {
          context.getTransaction().commit();
+      }
+   }
+
+   // HORNETQ-1029
+   private void applyExpiryDelay(ServerMessage message, SimpleString address)
+   {
+      long expirationOverride = addressSettingsRepository.getMatch(address.toString()).getExpiryDelay();
+
+      // A -1 <expiry-delay> means don't do anything
+      if (expirationOverride >= 0)
+      {
+         // only override the exiration on messages where the expiration hasn't been set by the user
+         if (message.getExpiration() == 0)
+         {
+            message.setExpiration(expirationOverride);
+         }
       }
    }
 
@@ -1254,7 +1276,9 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
    {
       if (reaperPeriod > 0)
       {
-         reaperRunnable.resetLatch();
+         if (reaperRunnable != null)
+            reaperRunnable.stop();
+         reaperRunnable = new Reaper();
          reaperThread = new Thread(reaperRunnable, "hornetq-expiry-reaper-thread");
 
          reaperThread.setPriority(reaperPriority);
@@ -1279,19 +1303,13 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       return message;
    }
 
-   private class Reaper implements Runnable
+   private final class Reaper implements Runnable
    {
-      private CountDownLatch latch = new CountDownLatch(1);
+      private final CountDownLatch latch = new CountDownLatch(1);
 
       public void stop()
       {
          latch.countDown();
-      }
-
-      public void resetLatch()
-      {
-         latch.countDown();
-         latch = new CountDownLatch(1);
       }
 
       public void run()
@@ -1340,7 +1358,7 @@ public class PostOfficeImpl implements PostOffice, NotificationListener, Binding
       }
    }
 
-   private static class AddOperation implements TransactionOperation
+   private static final class AddOperation implements TransactionOperation
    {
       private final List<MessageReference> refs;
 

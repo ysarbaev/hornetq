@@ -25,6 +25,7 @@ import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.client.ClientConsumer;
 import org.hornetq.api.core.client.ClientMessage;
 import org.hornetq.api.core.client.ClientProducer;
+import org.hornetq.api.core.client.FailoverEventListener;
 import org.hornetq.api.core.client.SendAcknowledgementHandler;
 import org.hornetq.api.core.client.SessionFailureListener;
 import org.hornetq.core.protocol.core.Channel;
@@ -113,6 +114,11 @@ public class DelegatingSession implements ClientSessionInternal
    public void addFailureListener(final SessionFailureListener listener)
    {
       session.addFailureListener(listener);
+   }
+   
+   public void addFailoverListener(FailoverEventListener listener) 
+   {
+	  session.addFailoverListener(listener);
    }
 
    public void addProducer(final ClientProducerInternal producer)
@@ -452,6 +458,11 @@ public class DelegatingSession implements ClientSessionInternal
    {
       return session.removeFailureListener(listener);
    }
+   
+   public boolean removeFailoverListener(FailoverEventListener listener) 
+   {
+		return session.removeFailoverListener(listener);
+   }
 
    public void removeProducer(final ClientProducerInternal producer)
    {
@@ -591,17 +602,13 @@ public class DelegatingSession implements ClientSessionInternal
       return "DelegatingSession [session=" + session + "]";
    }
 
-   /* (non-Javadoc)
-    * @see org.hornetq.core.client.impl.ClientSessionInternal#getChannel()
-    */
+   @Override
    public Channel getChannel()
    {
       return session.getChannel();
    }
 
-   /* (non-Javadoc)
-    * @see org.hornetq.api.core.client.ClientSession#addUniqueMetaData(java.lang.String, java.lang.String)
-    */
+   @Override
    public void addUniqueMetaData(String key, String data) throws HornetQException
    {
       session.addUniqueMetaData(key, data);

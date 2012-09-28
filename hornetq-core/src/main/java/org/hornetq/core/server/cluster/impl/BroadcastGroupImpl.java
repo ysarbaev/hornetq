@@ -13,19 +13,18 @@
 
 package org.hornetq.core.server.cluster.impl;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.hornetq.api.core.BroadcastEndpoint;
 import org.hornetq.api.core.HornetQBuffer;
 import org.hornetq.api.core.HornetQBuffers;
 import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.TransportConfiguration;
 import org.hornetq.api.core.management.NotificationType;
-import org.hornetq.core.cluster.BroadcastEndpoint;
 import org.hornetq.core.cluster.BroadcastEndpointFactory;
 import org.hornetq.core.server.HornetQLogger;
 import org.hornetq.core.server.NodeManager;
@@ -79,7 +78,7 @@ public class BroadcastGroupImpl implements BroadcastGroup, Runnable
                                   final String name,
                                   final long broadCastPeriod,
                                   final ScheduledExecutorService scheduledExecutor,
-                                  final BroadcastEndpoint endpoint) throws Exception
+                                  final BroadcastEndpointFactory endpointFactory) throws Exception
    {
       this.nodeManager = nodeManager;
 
@@ -89,7 +88,7 @@ public class BroadcastGroupImpl implements BroadcastGroup, Runnable
 
       this.broadCastPeriod = broadCastPeriod;
 
-      this.endpoint = endpoint;
+      this.endpoint = endpointFactory.createBroadcastEndpoint();
 
       uniqueID = UUIDGenerator.getInstance().generateStringUUID();
    }
@@ -135,7 +134,7 @@ public class BroadcastGroupImpl implements BroadcastGroup, Runnable
 
       try
       {
-         endpoint.close();
+         endpoint.close(true);
       }
       catch (Exception e1)
       {

@@ -44,14 +44,13 @@ import org.hornetq.api.core.client.ClientSessionFactory;
 import org.hornetq.api.core.client.ClusterTopologyListener;
 import org.hornetq.api.core.client.HornetQClient;
 import org.hornetq.api.core.client.loadbalance.ConnectionLoadBalancingPolicy;
-import org.hornetq.core.cluster.BroadcastEndpoint;
-import org.hornetq.core.cluster.BroadcastEndpointFactory;
 import org.hornetq.core.cluster.DiscoveryEntry;
 import org.hornetq.core.cluster.DiscoveryGroup;
 import org.hornetq.core.cluster.DiscoveryListener;
 import org.hornetq.core.remoting.FailureListener;
 import org.hornetq.core.server.HornetQLogger;
 import org.hornetq.core.server.HornetQMessageBundle;
+import org.hornetq.spi.core.remoting.Connector;
 import org.hornetq.utils.ClassloadingUtil;
 import org.hornetq.utils.HornetQThreadFactory;
 import org.hornetq.utils.UUIDGenerator;
@@ -377,24 +376,8 @@ public final class ServerLocatorImpl implements ServerLocatorInternal, Discovery
 
    private static DiscoveryGroup createDiscoveryGroup(String nodeID, DiscoveryGroupConfiguration config) throws Exception
    {
-      DiscoveryGroup group = null;
-
-      BroadcastEndpoint endpoint;
-
-      if (config.getJgroupsFile() != null)
-      {
-         endpoint = BroadcastEndpointFactory.createJGropusEndpoint(config.getJgroupsFile(), config.getJgroupsChannelName());
-      }
-      else
-      {
-         endpoint = BroadcastEndpointFactory.createUDPEndpoint(config.getGroupAddress(), config.getGroupPort(),
-            config.getLocalBindAddress(), config.getLocalBindPort());
-      }
-
-      group = new DiscoveryGroup(nodeID,
-         config.getName(),
-         config.getRefreshTimeout(),
-         endpoint, null);
+      DiscoveryGroup group = new DiscoveryGroup(nodeID, config.getName(),
+            config.getRefreshTimeout(), config.getBroadcastEndpointFactoryConfiguration().createBroadcastEndpointFactory(), null);
       return group;
    }
 
@@ -865,7 +848,6 @@ public final class ServerLocatorImpl implements ServerLocatorInternal, Discovery
          while (!isClosed() && !receivedTopology && timeout > System.currentTimeMillis())
          {
             // Now wait for the topology
-
             try
             {
                wait(1000);
@@ -873,11 +855,11 @@ public final class ServerLocatorImpl implements ServerLocatorInternal, Discovery
             catch (InterruptedException ignore)
             {
             }
-
          }
 
-         if (System.currentTimeMillis() > timeout && !receivedTopology)
+         if (isClosed() || !receivedTopology)
          {
+            factory.cleanup();
             throw HornetQMessageBundle.BUNDLE.connectionTimedOutOnReceiveTopology(discoveryGroup);
          }
 
@@ -1650,7 +1632,7 @@ public final class ServerLocatorImpl implements ServerLocatorInternal, Discovery
 
       if (ha)
       {
-         backup = topology.getBackupForConnector(factory.getConnectorConfiguration());
+         backup = topology.getBackupForConnector((Connector)factory.getConnector());
       }
 
       factory.setBackupConnector(factory.getConnectorConfiguration(), backup);

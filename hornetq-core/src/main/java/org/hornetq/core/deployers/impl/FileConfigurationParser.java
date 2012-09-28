@@ -23,18 +23,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.hornetq.api.core.BroadcastEndpointFactoryConfiguration;
 import org.hornetq.api.core.DiscoveryGroupConfiguration;
+import org.hornetq.api.core.JGroupsBroadcastGroupConfigurationWithFile;
 import org.hornetq.api.core.Pair;
 import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.TransportConfiguration;
+import org.hornetq.api.core.UDPBroadcastGroupConfiguration;
 import org.hornetq.api.core.client.HornetQClient;
-import org.hornetq.core.config.BridgeConfiguration;
-import org.hornetq.core.config.BroadcastGroupConfiguration;
-import org.hornetq.core.config.ClusterConnectionConfiguration;
-import org.hornetq.core.config.Configuration;
-import org.hornetq.core.config.ConnectorServiceConfiguration;
-import org.hornetq.core.config.CoreQueueConfiguration;
-import org.hornetq.core.config.DivertConfiguration;
+import org.hornetq.core.config.*;
 import org.hornetq.core.config.impl.ConfigurationImpl;
 import org.hornetq.core.config.impl.FileConfiguration;
 import org.hornetq.core.config.impl.Validators;
@@ -105,6 +102,8 @@ public final class FileConfigurationParser
    private static final String DEAD_LETTER_ADDRESS_NODE_NAME = "dead-letter-address";
 
    private static final String EXPIRY_ADDRESS_NODE_NAME = "expiry-address";
+
+   private static final String EXPIRY_DELAY_NODE_NAME = "expiry-delay";
 
    private static final String REDELIVERY_DELAY_NODE_NAME = "redelivery-delay";
 
@@ -177,17 +176,26 @@ public final class FileConfigurationParser
 
       config.setName(XMLConfigurationUtil.getString(e, "name", config.getName(), Validators.NO_CHECK));
 
-      config.setClustered(XMLConfigurationUtil.getBoolean(e, "clustered", config.isClustered()));
+      NodeList elems = e.getElementsByTagName("clustered");
+      if (elems != null && elems.getLength() > -1)
+      {
+         HornetQLogger.LOGGER.deprecatedConfigurationOption("clustered");
+
+      }
 
       config.setCheckForLiveServer(XMLConfigurationUtil.getBoolean(e, "check-for-live-server", config.isClustered()));
 
       config.setAllowAutoFailBack(XMLConfigurationUtil.getBoolean(e, "allow-failback", config.isClustered()));
+
+      config.setNodeGroupName(XMLConfigurationUtil.getString(e, "node-group-name", config.getNodeGroupName(), Validators.NO_CHECK));
 
       config.setFailbackDelay(XMLConfigurationUtil.getLong(e, "failback-delay", config.getFailbackDelay(), Validators.GT_ZERO));
 
       config.setFailoverOnServerShutdown(XMLConfigurationUtil.getBoolean(e,
                                                                          "failover-on-shutdown",
                                                                          config.isFailoverOnServerShutdown()));
+      config.setReplicationClustername(XMLConfigurationUtil.getString(e, "replication-clustername", null,
+                                                                      Validators.NO_CHECK));
 
       config.setBackup(XMLConfigurationUtil.getBoolean(e, "backup", config.isBackup()));
 
@@ -288,7 +296,7 @@ public final class FileConfigurationParser
       // parsing cluster password
       String passwordText = XMLConfigurationUtil.getString(e, "cluster-password", null, Validators.NO_CHECK);
 
-      boolean maskText = config.isMaskPassword();
+      final boolean maskText = config.isMaskPassword();
 
       if (passwordText != null)
       {
@@ -791,6 +799,10 @@ public final class FileConfigurationParser
             SimpleString queueName = new SimpleString(child.getTextContent());
             addressSettings.setExpiryAddress(queueName);
          }
+         else if (FileConfigurationParser.EXPIRY_DELAY_NODE_NAME.equalsIgnoreCase(child.getNodeName()))
+         {
+            addressSettings.setExpiryDelay(Long.valueOf(child.getTextContent()));
+         }
          else if (FileConfigurationParser.REDELIVERY_DELAY_NODE_NAME.equalsIgnoreCase(child.getNodeName()))
          {
             addressSettings.setRedeliveryDelay(Long.valueOf(child.getTextContent()));
@@ -976,23 +988,18 @@ public final class FileConfigurationParser
 
       // TODO: validate if either jgroups or UDP is being filled
 
-      BroadcastGroupConfiguration config;
+      BroadcastEndpointFactoryConfiguration endpointFactoryConfiguration;
 
       if (jgroupsFile != null)
       {
-         config = new BroadcastGroupConfiguration(name,
-            jgroupsFile, jgroupsChannel, broadcastPeriod, connectorNames);
+         endpointFactoryConfiguration = new JGroupsBroadcastGroupConfigurationWithFile(jgroupsFile, jgroupsChannel);
       }
       else
       {
-         config = new BroadcastGroupConfiguration(name,
-            localAddress,
-            localBindPort,
-            groupAddress,
-            groupPort,
-            broadcastPeriod,
-            connectorNames);
+         endpointFactoryConfiguration = new UDPBroadcastGroupConfiguration(groupAddress, groupPort, localAddress, localBindPort);
       }
+
+      BroadcastGroupConfiguration config = new BroadcastGroupConfiguration(name, broadcastPeriod, connectorNames, endpointFactoryConfiguration);
 
       mainConfig.getBroadcastGroupConfigurations().add(config);
    }
@@ -1000,8 +1007,6 @@ public final class FileConfigurationParser
    private void parseDiscoveryGroupConfiguration(final Element e, final Configuration mainConfig)
    {
       String name = e.getAttribute("name");
-
-      DiscoveryGroupConfiguration config = null;
 
       long discoveryInitialWaitTimeout = XMLConfigurationUtil.getLong(e,
          "initial-wait-timeout",
@@ -1026,21 +1031,17 @@ public final class FileConfigurationParser
       String jgroupsChannel = XMLConfigurationUtil.getString(e, "jgroups-channel", null, Validators.NO_CHECK);
 
       // TODO: validate if either jgroups or UDP is being filled
-
+      BroadcastEndpointFactoryConfiguration endpointFactoryConfiguration;
       if (jgroupsFile != null)
       {
-         config = new DiscoveryGroupConfiguration(name, refreshTimeout, discoveryInitialWaitTimeout, jgroupsFile, jgroupsChannel);
+         endpointFactoryConfiguration = new JGroupsBroadcastGroupConfigurationWithFile(jgroupsFile, jgroupsChannel);
       }
       else
       {
-         config = new DiscoveryGroupConfiguration(name,
-            localBindAddress,
-            localBindPort,
-            groupAddress,
-            groupPort,
-            refreshTimeout,
-            discoveryInitialWaitTimeout);
+         endpointFactoryConfiguration = new UDPBroadcastGroupConfiguration(groupAddress, groupPort, localBindAddress, localBindPort);
       }
+
+      DiscoveryGroupConfiguration config = new DiscoveryGroupConfiguration(name, refreshTimeout, discoveryInitialWaitTimeout, endpointFactoryConfiguration);
 
       if (mainConfig.getDiscoveryGroupConfigurations().containsKey(name))
       {
@@ -1137,32 +1138,21 @@ public final class FileConfigurationParser
 
       if (discoveryGroupName == null)
       {
-         config = new ClusterConnectionConfiguration(name,
-                                                     address,
-                                                     connectorName,
-                                                     minLargeMessageSize,
-                                                     clientFailureCheckPeriod,
-                                                     connectionTTL,
-                                                     retryInterval,
-                                                     retryIntervalMultiplier,
-                                                     maxRetryInterval,
-                                                     reconnectAttempts,
-                                                     callTimeout,
-                                                     callFailoverTimeout,
-                                                     duplicateDetection,
-                                                     forwardWhenNoConsumers,
-                                                     maxHops,
+         config =
+                  new ClusterConnectionConfiguration(name, address, connectorName,
+                                                     minLargeMessageSize, clientFailureCheckPeriod, connectionTTL,
+                                                     retryInterval, retryIntervalMultiplier, maxRetryInterval,
+                                                     reconnectAttempts, callTimeout, callFailoverTimeout,
+                                                     duplicateDetection, forwardWhenNoConsumers, maxHops,
                                                      confirmationWindowSize,
                                                      staticConnectorNames,
                                                      allowDirectConnectionsOnly);
       }
       else
       {
-         config = new ClusterConnectionConfiguration(name,
-                                                     address,
-                                                     connectorName,
-                                                     minLargeMessageSize,
-                                                     clientFailureCheckPeriod,
+         config =
+                  new ClusterConnectionConfiguration(name, address, connectorName,
+                                                     minLargeMessageSize, clientFailureCheckPeriod,
                                                      connectionTTL,
                                                      retryInterval,
                                                      retryIntervalMultiplier,

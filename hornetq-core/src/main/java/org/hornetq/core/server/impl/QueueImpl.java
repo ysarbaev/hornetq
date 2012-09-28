@@ -103,9 +103,9 @@ public class QueueImpl implements Queue
 
    private final PostOffice postOffice;
 
-   private final PageSubscription pageSubscription;
+   private PageSubscription pageSubscription;
 
-   private final LinkedListIterator<PagedReference> pageIterator;
+   private LinkedListIterator<PagedReference> pageIterator;
 
    // Messages will first enter intermediateMessageReferences
    // Before they are added to messageReferences
@@ -134,8 +134,6 @@ public class QueueImpl implements Queue
    private final Runnable deliverRunner = new DeliverRunner();
 
    private volatile boolean depagePending = false;
-
-   private final Runnable depageRunner = new DepageRunner();
 
    private final StorageManager storageManager;
 
@@ -481,7 +479,7 @@ public class QueueImpl implements Queue
          {
             HornetQLogger.LOGGER.trace("Force delivery scheduling depage");
          }
-         scheduleDepage();
+         scheduleDepage(false);
       }
 
       if (isTrace)
@@ -1075,6 +1073,14 @@ public class QueueImpl implements Queue
          {
             MessageReference ref = iter.next();
 
+            if (ref.isPaged() && pageIterator == null)
+            {
+               // this means the queue is being removed
+               // hence paged references are just going away through
+               // page cleanup
+               continue;
+            }
+
             if (filter == null || filter.match(ref.getMessage()))
             {
                deliveringCount.incrementAndGet();
@@ -1119,7 +1125,7 @@ public class QueueImpl implements Queue
 
          if (filter != null && pageIterator != null)
          {
-            scheduleDepage();
+            scheduleDepage(false);
          }
 
          return count;
@@ -1127,6 +1133,17 @@ public class QueueImpl implements Queue
       finally
       {
          iter.close();
+      }
+   }
+
+   public void destroyPaging() throws Exception
+   {
+      if (pageSubscription != null)
+      {
+         pageSubscription.destroy();
+         pageSubscription.cleanupEntries(true);
+         pageSubscription = null;
+         pageIterator = null;
       }
    }
 
@@ -1223,7 +1240,7 @@ public class QueueImpl implements Queue
       }
    }
 
-   public void expireReferences() throws Exception
+   public void expireReferences()
    {
       getExecutor().execute(new Runnable(){
          public void run()
@@ -1260,7 +1277,7 @@ public class QueueImpl implements Queue
                   // If empty we need to schedule depaging to make sure we would depage expired messages as well
                   if ((!hasElements || expired) && pageIterator != null && pageIterator.hasNext())
                   {
-                     scheduleDepage();
+                     scheduleDepage(true);
                   }
                }
                finally
@@ -1796,7 +1813,7 @@ public class QueueImpl implements Queue
 
       if (pageIterator != null && messageReferences.size() == 0 && pageSubscription.isPaging() && pageIterator.hasNext() && !depagePending)
       {
-         scheduleDepage();
+         scheduleDepage(false);
       }
    }
 
@@ -1823,7 +1840,7 @@ public class QueueImpl implements Queue
       }
    }
 
-   private void scheduleDepage()
+   private void scheduleDepage(final boolean scheduleExpiry)
    {
       if (!depagePending)
       {
@@ -1832,11 +1849,11 @@ public class QueueImpl implements Queue
             HornetQLogger.LOGGER.trace("Scheduling depage for queue " + this.getName());
          }
          depagePending = true;
-         pageSubscription.getExecutor().execute(depageRunner);
+         pageSubscription.getExecutor().execute(new DepageRunner(scheduleExpiry));
       }
    }
 
-   private void depage()
+   private void depage(final boolean scheduleExpiry)
    {
       depagePending = false;
 
@@ -1893,6 +1910,12 @@ public class QueueImpl implements Queue
       }
 
       deliverAsync();
+
+      if (depaged>0 && scheduleExpiry)
+      {
+         // This will just call an executor
+         expireReferences();
+      }
    }
 
    private void internalAddRedistributor(final Executor executor)
@@ -2460,11 +2483,18 @@ public class QueueImpl implements Queue
 
    private final class DepageRunner implements Runnable
    {
+      final boolean scheduleExpiry;
+
+      public DepageRunner(boolean scheduleExpiry)
+      {
+         this.scheduleExpiry = scheduleExpiry;
+      }
+
       public void run()
       {
          try
          {
-            depage();
+            depage(scheduleExpiry);
          }
          catch (Exception e)
          {

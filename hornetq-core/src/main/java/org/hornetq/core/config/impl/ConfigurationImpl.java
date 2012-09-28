@@ -48,8 +48,6 @@ public class ConfigurationImpl implements Configuration
 
    private static final long serialVersionUID = 4077088945050267843L;
 
-   public static final boolean DEFAULT_CLUSTERED = false;
-
    public static final boolean DEFAULT_PERSIST_DELIVERY_COUNT_BEFORE_DELIVERY = false;
 
    public static final boolean DEFAULT_BACKUP = false;
@@ -205,8 +203,6 @@ public class ConfigurationImpl implements Configuration
 
    private String nodeGroupName = null;
 
-   protected boolean clustered = ConfigurationImpl.DEFAULT_CLUSTERED;
-
    protected boolean backup = ConfigurationImpl.DEFAULT_BACKUP;
 
    private boolean allowAutoFailBack = ConfigurationImpl.DEFAULT_ALLOW_AUTO_FAILBACK;
@@ -361,16 +357,13 @@ public class ConfigurationImpl implements Configuration
 
    private transient String passwordCodec;
 
+   private String replicationClusterName;
+
    // Public -------------------------------------------------------------------------
 
    public boolean isClustered()
    {
-      return clustered;
-   }
-
-   public void setClustered(final boolean clustered)
-   {
-      this.clustered = clustered;
+      return !getClusterConfigurations().isEmpty();
    }
 
    public boolean isAllowAutoFailBack()
@@ -1083,11 +1076,6 @@ public class ConfigurationImpl implements Configuration
       {
          return false;
       }
-
-      if (clustered != other.clustered)
-      {
-         return false;
-      }
       if (connectionTTLOverride != other.connectionTTLOverride)
       {
          return false;
@@ -1426,7 +1414,7 @@ public class ConfigurationImpl implements Configuration
    public String toString()
    {
       StringBuffer sb = new StringBuffer("HornetQ Configuration (");
-      sb.append("clustered=").append(clustered).append(",");
+      sb.append("clustered=").append(isClustered()).append(",");
       sb.append("backup=").append(backup).append(",");
       sb.append("sharedStore=").append(sharedStore).append(",");
       sb.append("journalDirectory=").append(journalDirectory).append(",");
@@ -1455,6 +1443,18 @@ public class ConfigurationImpl implements Configuration
    public String getPasswordCodec()
    {
       return passwordCodec;
+   }
+
+   @Override
+   public void setReplicationClustername(String clusterName)
+   {
+      this.replicationClusterName = clusterName;
+   }
+
+   @Override
+   public String getReplicationClustername()
+   {
+      return replicationClusterName;
    }
 
 }

@@ -20,6 +20,7 @@ import junit.framework.Assert;
 import org.hornetq.api.core.DiscoveryGroupConfiguration;
 import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.TransportConfiguration;
+import org.hornetq.api.core.UDPBroadcastGroupConfiguration;
 import org.hornetq.core.config.BridgeConfiguration;
 import org.hornetq.core.config.BroadcastGroupConfiguration;
 import org.hornetq.core.config.ClusterConnectionConfiguration;
@@ -134,21 +135,22 @@ public class FileConfigurationTest extends ConfigurationImplTest
       Assert.assertEquals(2, conf.getBroadcastGroupConfigurations().size());
       for (BroadcastGroupConfiguration bc : conf.getBroadcastGroupConfigurations())
       {
+         UDPBroadcastGroupConfiguration udpBc = (UDPBroadcastGroupConfiguration)bc.getEndpointFactoryConfiguration();
          if (bc.getName().equals("bg1"))
          {
             Assert.assertEquals("bg1", bc.getName());
-            Assert.assertEquals(10999, bc.getLocalBindPort());
-            Assert.assertEquals("192.168.0.120", bc.getGroupAddress());
-            Assert.assertEquals(11999, bc.getGroupPort());
+            Assert.assertEquals(10999, udpBc.getLocalBindPort());
+            Assert.assertEquals("192.168.0.120", udpBc.getGroupAddress());
+            Assert.assertEquals(11999, udpBc.getGroupPort());
             Assert.assertEquals(12345, bc.getBroadcastPeriod());
             Assert.assertEquals("connector1", bc.getConnectorInfos().get(0));
          }
          else
          {
             Assert.assertEquals("bg2", bc.getName());
-            Assert.assertEquals(12999, bc.getLocalBindPort());
-            Assert.assertEquals("192.168.0.121", bc.getGroupAddress());
-            Assert.assertEquals(13999, bc.getGroupPort());
+            Assert.assertEquals(12999, udpBc.getLocalBindPort());
+            Assert.assertEquals("192.168.0.121", udpBc.getGroupAddress());
+            Assert.assertEquals(13999, udpBc.getGroupPort());
             Assert.assertEquals(23456, bc.getBroadcastPeriod());
             Assert.assertEquals("connector2", bc.getConnectorInfos().get(0));
          }
@@ -157,16 +159,16 @@ public class FileConfigurationTest extends ConfigurationImplTest
       Assert.assertEquals(2, conf.getDiscoveryGroupConfigurations().size());
       DiscoveryGroupConfiguration dc = conf.getDiscoveryGroupConfigurations().get("dg1");
       Assert.assertEquals("dg1", dc.getName());
-      Assert.assertEquals("192.168.0.120", dc.getGroupAddress());
-      assertEquals("172.16.8.10", dc.getLocalBindAddress());
-      Assert.assertEquals(11999, dc.getGroupPort());
+      Assert.assertEquals("192.168.0.120", ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getGroupAddress());
+      assertEquals("172.16.8.10", ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getLocalBindAddress());
+      Assert.assertEquals(11999, ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getGroupPort());
       Assert.assertEquals(12345, dc.getRefreshTimeout());
 
-      dc = conf.getDiscoveryGroupConfigurations().get("dg2");
+      dc =  conf.getDiscoveryGroupConfigurations().get("dg2");
       Assert.assertEquals("dg2", dc.getName());
-      Assert.assertEquals("192.168.0.121", dc.getGroupAddress());
-      assertEquals("172.16.8.11", dc.getLocalBindAddress());
-      Assert.assertEquals(12999, dc.getGroupPort());
+      Assert.assertEquals("192.168.0.121", ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getGroupAddress());
+      assertEquals("172.16.8.11", ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getLocalBindAddress());
+      Assert.assertEquals(12999, ((UDPBroadcastGroupConfiguration)dc.getBroadcastEndpointFactoryConfiguration()).getGroupPort());
       Assert.assertEquals(23456, dc.getRefreshTimeout());
 
       Assert.assertEquals(2, conf.getDivertConfigurations().size());
@@ -228,6 +230,8 @@ public class FileConfigurationTest extends ConfigurationImplTest
       }
 
       Assert.assertEquals(2, conf.getClusterConfigurations().size());
+      Assert.assertEquals("replication cluster name", "cluster-connection1", conf.getReplicationClustername());
+
       for (ClusterConnectionConfiguration ccc : conf.getClusterConfigurations())
       {
          if (ccc.getName().equals("cluster-connection1"))
@@ -354,5 +358,4 @@ public class FileConfigurationTest extends ConfigurationImplTest
 
       return fc;
    }
-
 }

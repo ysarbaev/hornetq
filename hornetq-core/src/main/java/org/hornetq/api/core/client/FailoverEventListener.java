@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Red Hat, Inc.
+ * Copyright 2009 Red Hat, Inc.
  * Red Hat licenses this file to you under the Apache License, version
  * 2.0 (the "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -10,27 +10,21 @@
  * implied.  See the License for the specific language governing
  * permissions and limitations under the License.
  */
-
-package org.hornetq.core.server.cluster.impl;
-
-import org.hornetq.api.core.SimpleString;
-import org.hornetq.core.client.impl.ServerLocatorInternal;
-import org.hornetq.core.server.cluster.ClusterManager;
+package org.hornetq.api.core.client;
 
 /**
- * A ClusterManagerInternal
+ * A FailoverEvent notifies the client the state if the connection changes occurred on the session.
  *
- * @author clebert
- *
- *
+ * @author <a href="mailto:flemming.harms@gmail.com">Flemming Harms</a>
  */
-public interface ClusterManagerInternal extends ClusterManager
-{
-   void addClusterLocator(ServerLocatorInternal locator);
-   
-   void removeClusterLocator(ServerLocatorInternal locator);
-   
-   String getNodeId();
-
-   String getNodeGroupName();
+public interface FailoverEventListener {
+	
+	/**
+	 * Notifies that a connection state has changed according the specified event type. <br>
+	 * This method is called when failover is detected, if it fails and when it's completed
+	 * 
+	 * @param eventType The type of event
+	 */
+	void failoverEvent(FailoverEventType eventType);
+	
 }

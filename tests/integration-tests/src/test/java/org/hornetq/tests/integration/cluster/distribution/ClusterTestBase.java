@@ -47,6 +47,7 @@ import org.hornetq.core.client.impl.TopologyMember;
 import org.hornetq.core.config.BroadcastGroupConfiguration;
 import org.hornetq.core.config.ClusterConnectionConfiguration;
 import org.hornetq.core.config.Configuration;
+import org.hornetq.core.config.UDPBroadcastGroupConfiguration;
 import org.hornetq.core.config.impl.ConfigurationImpl;
 import org.hornetq.core.postoffice.Binding;
 import org.hornetq.core.postoffice.Bindings;
@@ -355,7 +356,7 @@ public abstract class ClusterTestBase extends ServiceTestBase
 
    protected void waitForServerRestart(final int node) throws Exception
    {
-      if (!servers[node].waitForInitialization(ServiceTestBase.WAIT_TIMEOUT, TimeUnit.MILLISECONDS))
+      if (!servers[node].waitForActivation(ServiceTestBase.WAIT_TIMEOUT, TimeUnit.MILLISECONDS))
       {
          String msg = "Timed out waiting for server starting = " + node;
 
@@ -1560,7 +1561,6 @@ public abstract class ClusterTestBase extends ServiceTestBase
       configuration.setJournalMaxIO_AIO(1000);
       configuration.setSharedStore(sharedStorage);
       configuration.setThreadPoolMaxSize(10);
-      configuration.setClustered(true);
 
       configuration.getAcceptorConfigurations().clear();
       configuration.getAcceptorConfigurations().add(createTransportConfiguration(netty, true,
@@ -1623,7 +1623,6 @@ public abstract class ClusterTestBase extends ServiceTestBase
       Configuration configuration = createBasicConfig(sharedStorage ? liveNode : node);
 
       configuration.setSharedStore(sharedStorage);
-      configuration.setClustered(true);
       configuration.setBackup(true);
 
       configuration.getAcceptorConfigurations().clear();
@@ -1667,7 +1666,6 @@ public abstract class ClusterTestBase extends ServiceTestBase
       Configuration configuration = createBasicConfig(node);
 
       configuration.setJournalMaxIO_AIO(1000);
-      configuration.setClustered(true);
       configuration.setBackup(false);
 
       configuration.getAcceptorConfigurations().clear();
@@ -1682,22 +1680,18 @@ public abstract class ClusterTestBase extends ServiceTestBase
       List<String> connectorPairs = new ArrayList<String>();
       connectorPairs.add(connector.getName());
 
+      UDPBroadcastGroupConfiguration endpoint = new UDPBroadcastGroupConfiguration(groupAddress, port, null, -1);
+      
       BroadcastGroupConfiguration bcConfig = new BroadcastGroupConfiguration("bg1",
-                                                                             null,
-                                                                             -1,
-                                                                             groupAddress,
-                                                                             port,
                                                                              200,
-                                                                             connectorPairs);
+                                                                             connectorPairs,
+                                                                             endpoint);
 
       configuration.getBroadcastGroupConfigurations().add(bcConfig);
 
       DiscoveryGroupConfiguration dcConfig = new DiscoveryGroupConfiguration("dg1",
-                                                                             null, -1,
-                                                                             groupAddress,
-                                                                             port,
                                                                              1000,
-                                                                             1000);
+                                                                             1000, endpoint);
 
       configuration.getDiscoveryGroupConfigurations().put(dcConfig.getName(), dcConfig);
 
@@ -1745,7 +1739,6 @@ public abstract class ClusterTestBase extends ServiceTestBase
       Configuration configuration = createBasicConfig(sharedStorage ? liveNode : node);
 
       configuration.setSharedStore(sharedStorage);
-      configuration.setClustered(true);
       configuration.setBackup(true);
 
       configuration.getAcceptorConfigurations().clear();
@@ -1760,22 +1753,19 @@ public abstract class ClusterTestBase extends ServiceTestBase
       List<String> connectorPairs = new ArrayList<String>();
       connectorPairs.add(connector.getName());
 
+      UDPBroadcastGroupConfiguration endpoint = new UDPBroadcastGroupConfiguration(groupAddress, port, null, -1);
+
       BroadcastGroupConfiguration bcConfig = new BroadcastGroupConfiguration("bg1",
-                                                                             null,
-                                                                             -1,
-                                                                             groupAddress,
-                                                                             port,
                                                                              1000,
-                                                                             connectorPairs);
+                                                                             connectorPairs,
+                                                                             endpoint);
 
       configuration.getBroadcastGroupConfigurations().add(bcConfig);
 
       DiscoveryGroupConfiguration dcConfig = new DiscoveryGroupConfiguration("dg1",
-                                                                             null, -1,
-                                                                             groupAddress,
-                                                                             port,
                                                                              5000,
-                                                                             5000);
+                                                                             5000,
+                                                                             endpoint);
 
       configuration.getDiscoveryGroupConfigurations().put(dcConfig.getName(), dcConfig);
 
@@ -1841,10 +1831,9 @@ public abstract class ClusterTestBase extends ServiceTestBase
          pairs = new ArrayList<String>();
          pairs.add(serverTotc.getName());
       }
-
-      ClusterConnectionConfiguration clusterConf = new ClusterConnectionConfiguration(name,
-                                                                                      address,
-                                                                                      name,
+      Configuration config = serverFrom.getConfiguration();
+      ClusterConnectionConfiguration clusterConf =
+               new ClusterConnectionConfiguration(name, address, name,
                                                                                       100,
                                                                                       true,
                                                                                       forwardWhenNoConsumers,
@@ -1852,7 +1841,7 @@ public abstract class ClusterTestBase extends ServiceTestBase
                                                                                       1024,
                                                                                       pairs,
                                                                                       allowDirectConnectionsOnly);
-      serverFrom.getConfiguration().getClusterConfigurations().add(clusterConf);
+      config.getClusterConfigurations().add(clusterConf);
    }
 
    protected void setupClusterConnection(final String name,
@@ -1880,15 +1869,14 @@ public abstract class ClusterTestBase extends ServiceTestBase
          serverFrom.getConfiguration().getConnectorConfigurations().put(serverTotc.getName(), serverTotc);
          pairs.add(serverTotc.getName());
       }
-
-      ClusterConnectionConfiguration clusterConf = createClusterConfig(name,
-                                                                       address,
-                                                                       forwardWhenNoConsumers,
+      Configuration conf=serverFrom.getConfiguration();
+      ClusterConnectionConfiguration clusterConf =
+               createClusterConfig(name, address, forwardWhenNoConsumers,
                                                                        maxHops,
                                                                        connectorFrom,
                                                                        pairs);
 
-      serverFrom.getConfiguration().getClusterConfigurations().add(clusterConf);
+      conf.getClusterConfigurations().add(clusterConf);
    }
 
    protected void setupClusterConnection(final String name,
@@ -1918,9 +1906,9 @@ public abstract class ClusterTestBase extends ServiceTestBase
          serverFrom.getConfiguration().getConnectorConfigurations().put(serverTotc.getName(), serverTotc);
          pairs.add(serverTotc.getName());
       }
-
+Configuration conf=serverFrom.getConfiguration();
 		ClusterConnectionConfiguration clusterConf = new ClusterConnectionConfiguration(
-				name, address, connectorFrom.getName(),
+name, address, connectorFrom.getName(),
 				HornetQClient.DEFAULT_MIN_LARGE_MESSAGE_SIZE,
 				ConfigurationImpl.DEFAULT_CLUSTER_FAILURE_CHECK_PERIOD,
 				ConfigurationImpl.DEFAULT_CLUSTER_CONNECTION_TTL,
@@ -1930,36 +1918,15 @@ public abstract class ClusterTestBase extends ServiceTestBase
 				reconnectAttempts, 1000, 1000, true, forwardWhenNoConsumers, maxHops,
 				1024, pairs, false);
 
-      serverFrom.getConfiguration().getClusterConfigurations().add(clusterConf);
+      conf.getClusterConfigurations().add(clusterConf);
    }
 
-   /**
-    * @param name
-    * @param address
-    * @param forwardWhenNoConsumers
-    * @param maxHops
-    * @param connectorFrom
-    * @param pairs
-    * @return
-    */
-   protected ClusterConnectionConfiguration createClusterConfig(final String name,
-                                                                final String address,
-                                                                final boolean forwardWhenNoConsumers,
-                                                                final int maxHops,
-                                                                TransportConfiguration connectorFrom,
-                                                                List<String> pairs)
+   private ClusterConnectionConfiguration createClusterConfig(final String name, final String address,
+                                                              final boolean forwardWhenNoConsumers, final int maxHops,
+                                TransportConfiguration connectorFrom, List<String> pairs)
    {
-      ClusterConnectionConfiguration clusterConf = new ClusterConnectionConfiguration(name,
-                                                                                      address,
-                                                                                      connectorFrom.getName(),
-                                                                                      250,
-                                                                                      true,
-                                                                                      forwardWhenNoConsumers,
-                                                                                      maxHops,
-                                                                                      1024,
-                                                                                      pairs,
-                                                                                      false);
-      return clusterConf;
+      return new ClusterConnectionConfiguration(name, address, connectorFrom.getName(), 250, true,
+                                                forwardWhenNoConsumers, maxHops, 1024, pairs, false);
    }
 
    protected void setupClusterConnectionWithBackups(final String name,
@@ -1987,19 +1954,12 @@ public abstract class ClusterTestBase extends ServiceTestBase
          serverFrom.getConfiguration().getConnectorConfigurations().put(serverTotc.getName(), serverTotc);
          pairs.add(serverTotc.getName());
       }
+      Configuration config = serverFrom.getConfiguration();
+      ClusterConnectionConfiguration clusterConf =
+               new ClusterConnectionConfiguration(name, address, name, 250, true, forwardWhenNoConsumers, maxHops,
+                                                  1024, pairs, false);
 
-      ClusterConnectionConfiguration clusterConf = new ClusterConnectionConfiguration(name,
-                                                                                      address,
-                                                                                      name,
-                                                                                      250,
-                                                                                      true,
-                                                                                      forwardWhenNoConsumers,
-                                                                                      maxHops,
-                                                                                      1024,
-                                                                                      pairs,
-                                                                                      false);
-
-      serverFrom.getConfiguration().getClusterConfigurations().add(clusterConf);
+      config.getClusterConfigurations().add(clusterConf);
    }
 
    protected void setupDiscoveryClusterConnection(final String name,
@@ -2019,17 +1979,15 @@ public abstract class ClusterTestBase extends ServiceTestBase
 
       TransportConfiguration connectorConfig = createTransportConfiguration(netty, false, generateParams(node, netty));
       server.getConfiguration().getConnectorConfigurations().put(name, connectorConfig);
-
-      ClusterConnectionConfiguration clusterConf = new ClusterConnectionConfiguration(name,
-                                                                                      address,
-                                                                                      name,
-                                                                                      100,
+      Configuration conf = server.getConfiguration();
+      ClusterConnectionConfiguration clusterConf =
+               new ClusterConnectionConfiguration(name, address, name, 100,
                                                                                       true,
                                                                                       forwardWhenNoConsumers,
                                                                                       maxHops,
                                                                                       1024,
                                                                                       discoveryGroupName);
-      List<ClusterConnectionConfiguration> clusterConfs = server.getConfiguration().getClusterConfigurations();
+      List<ClusterConnectionConfiguration> clusterConfs = conf.getClusterConfigurations();
 
       clusterConfs.add(clusterConf);
    }
@@ -2078,9 +2036,9 @@ public abstract class ClusterTestBase extends ServiceTestBase
    protected void stopServers(final int... nodes) throws Exception
    {
       log.info("Stopping nodes " + Arrays.toString(nodes));
+      Exception exception = null;
       for (int node : nodes)
       {
-         log.info("#test stop server " + node);
          if (servers[node] != null && servers[node].isStarted())
          {
             try
@@ -2091,7 +2049,6 @@ public abstract class ClusterTestBase extends ServiceTestBase
                  Thread.sleep(TIMEOUT_START_SERVER);
                }
 
-
                timeStarts[node] = System.currentTimeMillis();
 
                log.info("stopping server " + node);
@@ -2100,10 +2057,12 @@ public abstract class ClusterTestBase extends ServiceTestBase
             }
             catch (Exception e)
             {
-               log.warn(e.getMessage(), e);
+               exception = e;
             }
          }
       }
+      if (exception != null)
+         throw exception;
    }
 
    protected boolean isFileStorage()

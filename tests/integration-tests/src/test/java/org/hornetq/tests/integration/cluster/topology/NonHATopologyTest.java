@@ -21,6 +21,7 @@ import org.hornetq.core.client.impl.ServerLocatorInternal;
 import org.hornetq.core.client.impl.Topology;
 import org.hornetq.core.client.impl.TopologyMember;
 import org.hornetq.core.config.ClusterConnectionConfiguration;
+import org.hornetq.core.config.Configuration;
 import org.hornetq.core.remoting.impl.invm.InVMConnectorFactory;
 import org.hornetq.core.remoting.impl.netty.NettyConnectorFactory;
 import org.hornetq.core.server.HornetQServer;
@@ -29,7 +30,7 @@ import org.hornetq.tests.util.ServiceTestBase;
 /**
  * I have added this test to help validate if the connectors from Recovery will be
  * properly updated
- * 
+ *
  * Created to verify HORNETQ-913 / AS7-4548
  *
  * @author clebertsuconic
@@ -69,13 +70,11 @@ public class NonHATopologyTest extends ServiceTestBase
                   .getConnectorConfigurations()
                   .put("netty", new TransportConfiguration(NETTY_CONNECTOR_FACTORY));
 
-            server.getConfiguration().setClustered(true);
-
             ArrayList<String> list = new ArrayList<String>();
             list.add("netty");
-            server.getConfiguration()
-                  .getClusterConfigurations()
-                  .add(new ClusterConnectionConfiguration("tst", "jms", "netty", 1000, true, false, 1, 1000, list, true));
+            Configuration config = server.getConfiguration();
+            config.getClusterConfigurations().add(new ClusterConnectionConfiguration("tst", "jms", "netty", 1000, true,
+                                                                                     false, 1, 1000, list, true));
 
          }
 

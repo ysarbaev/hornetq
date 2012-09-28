@@ -21,6 +21,9 @@
 */
 package org.hornetq.tests.integration.cluster.failover;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.hornetq.api.core.SimpleString;
 import org.hornetq.api.core.TransportConfiguration;
 import org.hornetq.api.core.client.ClientSession;
@@ -37,9 +40,6 @@ import org.hornetq.tests.integration.cluster.util.SameProcessHornetQServer;
 import org.hornetq.tests.integration.cluster.util.TestableServer;
 import org.hornetq.tests.util.ServiceTestBase;
 import org.hornetq.tests.util.TransportConfigurationUtils;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * @author <a href="mailto:andy.taylor@jboss.org">Andy Taylor</a>
@@ -81,6 +81,10 @@ public abstract class MultipleServerFailoverTestBase extends ServiceTestBase
    protected void setUp() throws Exception
    {
       super.setUp();
+      liveServers = new ArrayList<TestableServer>();
+      backupServers = new ArrayList<TestableServer>();
+      backupConfigs = new ArrayList<Configuration>();
+      liveConfigs = new ArrayList<Configuration>();
       for(int i = 0; i < getLiveServerCount(); i++)
       {
          Configuration configuration = createDefaultConfig(useNetty());
@@ -98,7 +102,6 @@ public abstract class MultipleServerFailoverTestBase extends ServiceTestBase
          {
             //todo
          }
-         configuration.setClustered(true);
          configuration.setFailbackDelay(1000);
          if(getNodeGroupName() != null)
          {
@@ -128,7 +131,6 @@ public abstract class MultipleServerFailoverTestBase extends ServiceTestBase
          {
             //todo
          }
-         configuration.setClustered(true);
          configuration.setBackup(true);
          configuration.setFailbackDelay(1000);
          if(getNodeGroupName() != null)
@@ -149,12 +151,34 @@ public abstract class MultipleServerFailoverTestBase extends ServiceTestBase
    {
       for (TestableServer backupServer : backupServers)
       {
-         backupServer.stop();
+         try
+         {
+            backupServer.stop();
+         }
+         catch (Exception e)
+         {
+            logAndSystemOut("unable to stop server", e);
+         }
       }
+      backupServers.clear();
+      backupServers = null;
+      backupConfigs.clear();
+      backupConfigs = null;
       for (TestableServer liveServer : liveServers)
       {
-         liveServer.stop();
+         try
+         {
+            liveServer.stop();
+         }
+         catch (Exception e)
+         {
+            logAndSystemOut("unable to stop server", e);
+         }
       }
+      liveServers.clear();
+      liveServers = null;
+      liveConfigs.clear();
+      liveConfigs = null;
       super.tearDown();
    }
 

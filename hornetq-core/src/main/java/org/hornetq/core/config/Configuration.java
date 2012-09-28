@@ -57,22 +57,16 @@ public interface Configuration extends Serializable
    public String getNodeGroupName();
 
    /**
-    * used to configure groups of live/backup servers
-    * @param nodeGroupName thye node group name
+    * Used to configure groups of live/backup servers.
+    * @param nodeGroupName the node group name
     */
    public void setNodeGroupName(String nodeGroupName);
 
    /**
-    * Returns whether this server is clustered.
-    * <br>
-    * Default value is {@value org.hornetq.core.config.impl.ConfigurationImpl#DEFAULT_CLUSTERED}.
+    * Returns whether this server is clustered. <br>
+    * {@code true} if {@link #getClusterConfigurations()} is not empty.
     */
    boolean isClustered();
-
-   /**
-    * Sets whether this server is clustered or not.
-    */
-   void setClustered(boolean clustered);
 
    /**
     * Returns whether a backup will automatically stop when a live server is restarting (i.e.
@@ -368,11 +362,9 @@ public interface Configuration extends Serializable
    void setQueueConfigurations(final List<CoreQueueConfiguration> configs);
 
    /**
-    * Returns the management address of this server.
-    * <br>
-    * Clients can send management messages to this address to manage this server.
-    * <br>
-    * Default value is "hornetq.management".
+    * Returns the management address of this server. <br>
+    * Clients can send management messages to this address to manage this server. <br>
+    * Default value is {@value hornetq.management}.
     */
     SimpleString getManagementAddress();
 
@@ -913,4 +905,18 @@ public interface Configuration extends Serializable
     */
    boolean isMaskPassword();
 
+   /**
+    * Name of the cluster configuration to use for replication.
+    * <p>
+    * Only applicable for servers with more than one cluster configuration. This value is only used
+    * by replicating backups and live servers that attempt fail-back.
+    * @param clusterName
+    */
+   void setReplicationClustername(String clusterName);
+
+   /**
+    * @see #setReplicationClustername(String)
+    * @return name of the cluster configuration to use
+    */
+   String getReplicationClustername();
 }

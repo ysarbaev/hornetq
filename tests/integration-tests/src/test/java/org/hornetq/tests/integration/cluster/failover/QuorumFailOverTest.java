@@ -12,12 +12,23 @@ import org.hornetq.tests.integration.cluster.util.BackupSyncDelay;
 
 public class QuorumFailOverTest extends StaticClusterWithBackupFailoverTest
 {
+   @Override
+   protected void setupServers() throws Exception
+   {
+      super.setupServers();
+      //we need to know who is connected to who
+      servers[0].getConfiguration().setNodeGroupName("group0");
+      servers[1].getConfiguration().setNodeGroupName("group1");
+      servers[2].getConfiguration().setNodeGroupName("group2");
+      servers[3].getConfiguration().setNodeGroupName("group0");
+      servers[4].getConfiguration().setNodeGroupName("group1");
+      servers[5].getConfiguration().setNodeGroupName("group2");
+   }
 
    public void testQuorumVoting() throws Exception
    {
       int[] liveServerIDs = new int[] { 0, 1, 2 };
       setupCluster();
-
       startServers(0, 1, 2);
       new BackupSyncDelay(servers[4], servers[1], PacketImpl.REPLICATION_SCHEDULED_FAILOVER);
       startServers(3, 4, 5);
@@ -39,6 +50,8 @@ public class QuorumFailOverTest extends StaticClusterWithBackupFailoverTest
       }
 
       waitForBindings(0, QUEUES_TESTADDRESS, 1, 1, true);
+      waitForBindings(1, QUEUES_TESTADDRESS, 1, 1, true);
+      waitForBindings(2, QUEUES_TESTADDRESS, 1, 1, true);
 
       send(0, QUEUES_TESTADDRESS, 10, false, null);
       verifyReceiveRoundRobinInSomeOrder(true, 10, 0, 1, 2);
@@ -57,7 +70,7 @@ public class QuorumFailOverTest extends StaticClusterWithBackupFailoverTest
 
       waitForBindings(3, QUEUES_TESTADDRESS, 1, 1, true);
 
-      assertTrue(servers[3].waitForInitialization(2, TimeUnit.SECONDS));
+      assertTrue(servers[3].waitForActivation(2, TimeUnit.SECONDS));
       assertFalse("3 should have failed over ", servers[3].getConfiguration().isBackup());
 
       failNode(1);

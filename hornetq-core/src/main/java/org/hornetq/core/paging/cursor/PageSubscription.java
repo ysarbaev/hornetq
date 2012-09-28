@@ -17,6 +17,7 @@ import java.util.concurrent.Executor;
 
 import org.hornetq.core.paging.PagedMessage;
 import org.hornetq.core.paging.PagingStore;
+import org.hornetq.core.paging.impl.Page;
 import org.hornetq.core.server.Queue;
 import org.hornetq.core.transaction.Transaction;
 import org.hornetq.utils.LinkedListIterator;
@@ -54,7 +55,7 @@ public interface PageSubscription
    public LinkedListIterator<PagedReference> iterator();
 
    // To be called when the cursor is closed for good. Most likely when the queue is deleted
-   void close() throws Exception;
+   void destroy() throws Exception;
 
    void scheduleCleanupCheck();
 
@@ -86,6 +87,8 @@ public interface PageSubscription
     * @param position
     */
    void reloadACK(PagePosition position);
+
+   void reloadPageCompletion(PagePosition position);
 
    /**
     * To be called when the cursor decided to ignore a position.
@@ -135,9 +138,13 @@ public interface PageSubscription
    PagedMessage queryMessage(PagePosition pos);
 
    /**
-    * Returns the executor used in this page subscription. Used to schedule queue tasks in the right
-    * order while paging.
-    * @return the executor
+    * @return
     */
    Executor getExecutor();
+
+   /**
+    * @param deletedPage
+    * @throws Exception
+    */
+   void onDeletePage(Page deletedPage) throws Exception;
 }

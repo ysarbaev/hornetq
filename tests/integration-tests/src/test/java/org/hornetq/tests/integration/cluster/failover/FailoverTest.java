@@ -215,10 +215,9 @@ public class FailoverTest extends FailoverTestBase
             try
             {
                log.debug("acking message = id = " + message.getMessageID() + ", counter = " +
-                        message.getIntProperty("counter"));
+                     message.getIntProperty("counter"));
                message.acknowledge();
-            }
-            catch (HornetQException e)
+            } catch (HornetQException e)
             {
                e.printStackTrace();
                return;
@@ -397,7 +396,15 @@ public class FailoverTest extends FailoverTestBase
       session.prepare(xid);
       crash(false, session);
 
-      session.commit(xid, false);
+      try
+      {
+         session.commit(xid, false);
+      }
+      catch (XAException e)
+      {
+         //there is still an edge condition that we must deal with
+         session.commit(xid, false);
+      }
 
       ClientConsumer consumer = session.createConsumer(FailoverTestBase.ADDRESS);
       session.start();
@@ -443,7 +450,15 @@ public class FailoverTest extends FailoverTestBase
       session.prepare(xid);
       crash(false, session);
 
-      session.rollback(xid);
+      try
+      {
+         session.rollback(xid);
+      }
+      catch (XAException e)
+      {
+         //there is still an edge condition that we must deal with
+         session.rollback(xid);
+      }
 
       ClientConsumer consumer = session.createConsumer(FailoverTestBase.ADDRESS);
       session.start();
@@ -593,7 +608,7 @@ public class FailoverTest extends FailoverTestBase
       adaptLiveConfigForReplicatedFailBack(liveServer.getServer().getConfiguration());
       beforeRestart(liveServer);
       liveServer.start();
-      assertTrue("live initialized...", liveServer.getServer().waitForInitialization(15, TimeUnit.SECONDS));
+      assertTrue("live initialized...", liveServer.getServer().waitForActivation(15, TimeUnit.SECONDS));
 
       sf = (ClientSessionFactoryInternal)createSessionFactory(locator);
 
@@ -643,13 +658,13 @@ public class FailoverTest extends FailoverTestBase
       backupServer.stop(); // Backup stops!
       beforeRestart(backupServer);
       backupServer.start();
-      backupServer.getServer().waitForInitialization(5, TimeUnit.SECONDS);
+      backupServer.getServer().waitForActivation(5, TimeUnit.SECONDS);
       backupServer.stop(); // Backup stops!
 
       liveServer.stop();
       beforeRestart(liveServer);
       liveServer.start();
-      liveServer.getServer().waitForInitialization(10, TimeUnit.SECONDS);
+      liveServer.getServer().waitForActivation(10, TimeUnit.SECONDS);
 
       ClientSession session2 = createSession(sf, false, false);
       session2.start();
@@ -697,7 +712,7 @@ public class FailoverTest extends FailoverTestBase
          adaptLiveConfigForReplicatedFailBack(liveServer.getServer().getConfiguration());
          beforeRestart(liveServer);
          liveServer.start();
-         assertTrue("live initialized...", liveServer.getServer().waitForInitialization(15, TimeUnit.SECONDS));
+         assertTrue("live initialized...", liveServer.getServer().waitForActivation(15, TimeUnit.SECONDS));
          int i = 0;
          while (backupServer.isStarted() && i++ < 100)
          {
@@ -710,7 +725,7 @@ public class FailoverTest extends FailoverTestBase
          backupServer.stop();
          beforeRestart(backupServer);
          backupServer.start();
-         backupServer.getServer().waitForInitialization(10, TimeUnit.SECONDS);
+         backupServer.getServer().waitForActivation(10, TimeUnit.SECONDS);
       }
 
       ClientSession session2 = createSession(sf, false, false);
@@ -1519,11 +1534,7 @@ public class FailoverTest extends FailoverTestBase
       for (int i = 0; i < NUM_MESSAGES; i++)
       {
          // some are durable, some are not!
-         boolean durable = isDurable(i);
-         ClientMessage message = session.createMessage(durable);
-         setBody(i, message);
-         message.putIntProperty("counter", i);
-         producer.send(message);
+         producer.send(createMessage(session, i, isDurable(i)));
       }
    }
 
@@ -1611,15 +1622,8 @@ public class FailoverTest extends FailoverTestBase
 
       for (int i = NUM_MESSAGES; i < NUM_MESSAGES * 2; i++)
       {
-         ClientMessage message = session.createMessage(isDurable(i));
-
-         setBody(i, message);
-
-         message.putIntProperty("counter", i);
-
-         producer.send(message);
+         producer.send(createMessage(session, i, isDurable(i)));
       }
-
       receiveMessages(consumer, NUM_MESSAGES, NUM_MESSAGES * 2, true);
    }
 

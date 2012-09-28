@@ -13,9 +13,7 @@
 
 package org.hornetq.tests.integration.jms.cluster;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import javax.jms.BytesMessage;
@@ -37,7 +35,6 @@ import org.hornetq.api.core.client.ClientSession;
 import org.hornetq.api.jms.HornetQJMSClient;
 import org.hornetq.api.jms.JMSFactoryType;
 import org.hornetq.core.client.impl.ClientSessionInternal;
-import org.hornetq.core.config.ClusterConnectionConfiguration;
 import org.hornetq.core.config.Configuration;
 import org.hornetq.core.remoting.impl.invm.InVMRegistry;
 import org.hornetq.core.remoting.impl.invm.TransportConstants;
@@ -358,20 +355,8 @@ public class JMSFailoverTest extends ServiceTestBase
       backupConf.getAcceptorConfigurations().add(backupAcceptortc);
       backupConf.getConnectorConfigurations().put(livetc.getName(), livetc);
       backupConf.getConnectorConfigurations().put(backuptc.getName(), backuptc);
-      ArrayList<String> staticConnectors = new ArrayList<String>();
-      staticConnectors.add(livetc.getName());
-      ClusterConnectionConfiguration cccBackup = new ClusterConnectionConfiguration("cluster1",
-                                                                                    "jms",
-                                                                                    backuptc.getName(),
- 10,
-                                                                                    false,
-                                                                                    false,
-                                                                                    1,
-                                                                                    1,
-                                                                                    staticConnectors,
-                                                                                    false);
+      basicClusterConnectionConfig(backupConf, backuptc.getName(), livetc.getName());
 
-      backupConf.getClusterConfigurations().add(cccBackup);
       backupConf.setSecurityEnabled(false);
       backupConf.setJournalType(getDefaultJournalType());
       backupParams.put(TransportConstants.SERVER_ID_PROP_NAME, 1);
@@ -384,7 +369,6 @@ public class JMSFailoverTest extends ServiceTestBase
       backupConf.setPagingDirectory(getPageDir());
       backupConf.setLargeMessagesDirectory(getLargeMessagesDir());
       backupConf.setPersistenceEnabled(true);
-      backupConf.setClustered(true);
       backupService = new ServiceTestBase.InVMNodeManagerServer(backupConf, nodeManager);
 
       backupJMSService = new JMSServerManagerImpl(backupService);
@@ -402,18 +386,7 @@ public class JMSFailoverTest extends ServiceTestBase
 
       liveConf.setSecurityEnabled(false);
       liveConf.getAcceptorConfigurations().add(liveAcceptortc);
-      List<String> pairs = null;
-      ClusterConnectionConfiguration ccc0 = new ClusterConnectionConfiguration("cluster1",
-                                                                               "jms",
-                                                                               livetc.getName(),
- 10,
-                                                                               false,
-                                                                               false,
-                                                                               1,
-                                                                               1,
-                                                                               pairs,
-                                                                               false);
-      liveConf.getClusterConfigurations().add(ccc0);
+      basicClusterConnectionConfig(liveConf, livetc.getName());
       liveConf.setSharedStore(true);
       liveConf.setJournalType(getDefaultJournalType());
       liveConf.setBindingsDirectory(getBindingsDir());
@@ -423,7 +396,6 @@ public class JMSFailoverTest extends ServiceTestBase
       liveConf.setLargeMessagesDirectory(getLargeMessagesDir());
       liveConf.getConnectorConfigurations().put(livetc.getName(), livetc);
       liveConf.setPersistenceEnabled(true);
-      liveConf.setClustered(true);
       liveService = new InVMNodeManagerServer(liveConf, nodeManager);
 
       liveJMSService = new JMSServerManagerImpl(liveService);

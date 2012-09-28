@@ -5,11 +5,17 @@
         <xsd:complexType>
             <xsd:all>
                 <xsd:element maxOccurs="1" minOccurs="0" name="name" type="xsd:string"/>
-                <xsd:element maxOccurs="1" minOccurs="0" ref="clustered"/>
+                <xsd:element maxOccurs="1" minOccurs="0" ref="clustered">
+                 <xsd:annotation>
+                        <xsd:documentation>
+                            DEPRECATED. This option is deprecated and its value will be ignored. A HornetQ server will be "clustered" when its configuration contain a cluster-configuration. 
+                        </xsd:documentation>
+                    </xsd:annotation>
+                    </xsd:element>
                 <xsd:element maxOccurs="1" minOccurs="0" name="check-for-live-server" type="xsd:string">
                     <xsd:annotation>
                         <xsd:documentation>
-                            Whether or not we should check the cluster for a live server when starting up (replicated servers only)
+                            Whether or not we should check the cluster for a live server when starting up. This setting only applies to replicated servers.
                         </xsd:documentation>
                     </xsd:annotation>
                 </xsd:element>
@@ -34,8 +40,29 @@
                 <xsd:element maxOccurs="1" minOccurs="0" name="wild-card-routing-enabled" type="xsd:boolean"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="management-address" type="xsd:string"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="management-notification-address" type="xsd:string"/>
-                <xsd:element maxOccurs="1" minOccurs="0" name="cluster-user" type="xsd:string"/>
-                <xsd:element maxOccurs="1" minOccurs="0" name="cluster-password" type="xsd:string"/>
+                <xsd:element maxOccurs="1" minOccurs="0" name="cluster-user" type="xsd:string">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    Cluster username. It applies to any cluster configuration.
+                  </xsd:documentation>
+                 </xsd:annotation>
+                 </xsd:element>
+                <xsd:element maxOccurs="1" minOccurs="0" name="cluster-password" type="xsd:string">
+                  <xsd:annotation>
+                  <xsd:documentation>
+                    Cluster password. It applies to any cluster configuration.
+                  </xsd:documentation>
+                 </xsd:annotation>
+                </xsd:element>
+                <xsd:element maxOccurs="1" minOccurs="0" name="replication-clustername" type="xsd:string">
+                 <xsd:annotation>
+                  <xsd:documentation>
+                   Name of the cluster configuration to use for replication. 
+                   This setting is only necessary in case you configure multiple cluster connections. 
+                   It is used by a replicating backups and by live servers that may attempt fail-back.
+                  </xsd:documentation>
+                 </xsd:annotation>
+                </xsd:element>
                 <xsd:element maxOccurs="1" minOccurs="0" name="password-codec" type="xsd:string"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="mask-password" type="xsd:boolean"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="log-delegate-factory-class-name" type="xsd:string"/>
@@ -60,6 +87,13 @@
                             Whether a server will automatically stop when a another places a request to take over its place.
                             The use case is when a regular server stops and its backup takes over its duties, later the main
                             server restarts and requests the server (the former backup) to stop operating.
+                        </xsd:documentation>
+                    </xsd:annotation>
+                </xsd:element>
+                <xsd:element maxOccurs="1" minOccurs="0" name="node-group-name" type="xsd:string">
+                    <xsd:annotation>
+                        <xsd:documentation>
+                            used for replication, if set backups will only replicate from live server who have the same node group name
                         </xsd:documentation>
                     </xsd:annotation>
                 </xsd:element>
@@ -388,6 +422,7 @@
             <xsd:all>
                 <xsd:element maxOccurs="1" minOccurs="0" name="dead-letter-address" type="xsd:string"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="expiry-address" type="xsd:string"/>
+                <xsd:element maxOccurs="1" minOccurs="0" name="expiry-delay" type="xsd:long"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="redelivery-delay" type="xsd:long"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="redelivery-delay-multiplier" type="xsd:double"/>
                 <xsd:element maxOccurs="1" minOccurs="0" name="max-redelivery-delay" type="xsd:long"/>

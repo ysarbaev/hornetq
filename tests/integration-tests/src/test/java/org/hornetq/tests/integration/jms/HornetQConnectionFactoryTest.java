@@ -31,6 +31,7 @@ import org.hornetq.api.jms.HornetQJMSClient;
 import org.hornetq.api.jms.JMSFactoryType;
 import org.hornetq.core.config.BroadcastGroupConfiguration;
 import org.hornetq.core.config.Configuration;
+import org.hornetq.core.config.UDPBroadcastGroupConfiguration;
 import org.hornetq.core.server.HornetQServer;
 import org.hornetq.core.server.HornetQServers;
 import org.hornetq.jms.client.HornetQConnectionFactory;
@@ -157,7 +158,8 @@ public class HornetQConnectionFactoryTest extends UnitTestCase
 
    public void testDiscoveryConstructor() throws Exception
    {
-      DiscoveryGroupConfiguration groupConfiguration = new DiscoveryGroupConfiguration(groupAddress, groupPort);
+      DiscoveryGroupConfiguration groupConfiguration = new DiscoveryGroupConfiguration(HornetQClient.DEFAULT_DISCOVERY_INITIAL_WAIT_TIMEOUT, HornetQClient.DEFAULT_DISCOVERY_INITIAL_WAIT_TIMEOUT,
+            new UDPBroadcastGroupConfiguration(groupAddress, groupPort, null, -1));
       HornetQConnectionFactory cf = HornetQJMSClient.createConnectionFactoryWithoutHA(groupConfiguration, JMSFactoryType.CF);
       assertFactoryParams(cf,
                           null,
@@ -697,15 +699,12 @@ public class HornetQConnectionFactoryTest extends UnitTestCase
    {
       Configuration liveConf = createBasicConfig();
       liveConf.setSecurityEnabled(false);
-      liveTC = new TransportConfiguration("org.hornetq.core.remoting.impl.invm.InVMConnectorFactory");
-      liveConf.getAcceptorConfigurations()
-              .add(new TransportConfiguration("org.hornetq.core.remoting.impl.invm.InVMAcceptorFactory"));
+      liveTC = new TransportConfiguration(INVM_CONNECTOR_FACTORY);
+      liveConf.getAcceptorConfigurations().add(new TransportConfiguration(INVM_ACCEPTOR_FACTORY));
       Map<String, TransportConfiguration> connectors = new HashMap<String, TransportConfiguration>();
       connectors.put(liveTC.getName(), liveTC);
       liveConf.setConnectorConfigurations(connectors);
       liveConf.setSharedStore(true);
-      liveConf.setClustered(true);
-
       List<String> connectorNames = new ArrayList<String>();
       connectorNames.add(liveTC.getName());
 
@@ -716,12 +715,9 @@ public class HornetQConnectionFactoryTest extends UnitTestCase
       final int localBindPort = 5432;
 
       BroadcastGroupConfiguration bcConfig1 = new BroadcastGroupConfiguration(bcGroupName,
-                                                                              null,
-                                                                              localBindPort,
-                                                                              groupAddress,
-                                                                              groupPort,
                                                                               broadcastPeriod,
-                                                                              connectorNames);
+                                                                              connectorNames,
+                                              new UDPBroadcastGroupConfiguration(groupAddress, groupPort, null, localBindPort));
 
       List<BroadcastGroupConfiguration> bcConfigs1 = new ArrayList<BroadcastGroupConfiguration>();
       bcConfigs1.add(bcConfig1);

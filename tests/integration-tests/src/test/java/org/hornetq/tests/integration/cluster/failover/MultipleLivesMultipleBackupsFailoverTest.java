@@ -23,7 +23,6 @@ import org.hornetq.api.core.client.ClientSession;
 import org.hornetq.api.core.client.ServerLocator;
 import org.hornetq.core.client.impl.ClientSessionFactoryInternal;
 import org.hornetq.core.client.impl.ServerLocatorInternal;
-import org.hornetq.core.config.ClusterConnectionConfiguration;
 import org.hornetq.core.config.Configuration;
 import org.hornetq.core.server.NodeManager;
 import org.hornetq.core.server.impl.InVMNodeManager;
@@ -41,23 +40,15 @@ public class MultipleLivesMultipleBackupsFailoverTest extends MultipleBackupsFai
    @Override
    protected void tearDown() throws Exception
    {
-      for (TestableServer testableServer : servers.values())
+      try
       {
-         if (testableServer != null)
-         {
-            try
-            {
-               testableServer.destroy();
-            }
-            catch (Throwable e)
-            {
-               //
-            }
-         }
+         closeServerLocator(locator);
+         closeServerLocator(locator2);
       }
-      closeServerLocator(locator);
-      closeServerLocator(locator2);
-      super.tearDown();
+      finally
+      {
+         super.tearDown();
+      }
    }
 
    public void testMultipleFailovers2LiveServers() throws Exception
@@ -163,7 +154,6 @@ public class MultipleLivesMultipleBackupsFailoverTest extends MultipleBackupsFai
       config1.setSecurityEnabled(false);
       config1.setSharedStore(true);
       config1.setBackup(true);
-      config1.setClustered(true);
 
       List<String> staticConnectors = new ArrayList<String>();
       for (int node : otherBackupNodes)
@@ -188,18 +178,7 @@ public class MultipleLivesMultipleBackupsFailoverTest extends MultipleBackupsFai
          config1.getConnectorConfigurations().put(connector.getName(), connector);
          clusterNodes.add(connector.getName());
       }
-      ClusterConnectionConfiguration ccc1 = new ClusterConnectionConfiguration("cluster1",
-                                                                               "jms",
-                                                                               backupConnector.getName(),
- 10,
-                                                                               false,
-                                                                               false,
-                                                                               1,
-                                                                               1,
-                                                                               clusterNodes,
-                                                                               false);
-      config1.getClusterConfigurations().add(ccc1);
-
+      basicClusterConnectionConfig(config1, backupConnector.getName(), clusterNodes);
       config1.setBindingsDirectory(config1.getBindingsDirectory() + "_" + liveNode);
       config1.setJournalDirectory(config1.getJournalDirectory() + "_" + liveNode);
       config1.setPagingDirectory(config1.getPagingDirectory() + "_" + liveNode);
@@ -220,7 +199,6 @@ public class MultipleLivesMultipleBackupsFailoverTest extends MultipleBackupsFai
                                                                            generateParams(liveNode, isNetty())));
       config0.setSecurityEnabled(false);
       config0.setSharedStore(true);
-      config0.setClustered(true);
       List<String> pairs = new ArrayList<String>();
       for (int node : otherLiveNodes)
       {
@@ -231,17 +209,7 @@ public class MultipleLivesMultipleBackupsFailoverTest extends MultipleBackupsFai
          pairs.add(otherLiveConnector.getName());
 
       }
-      ClusterConnectionConfiguration ccc0 = new ClusterConnectionConfiguration("cluster1",
-                                                                               "jms",
-                                                                               liveConnector.getName(),
- 10,
-                                                                               false,
-                                                                               false,
-                                                                               1,
-                                                                               1,
-                                                                               pairs,
-                                                                               false);
-      config0.getClusterConfigurations().add(ccc0);
+      basicClusterConnectionConfig(config0, liveConnector.getName(), pairs);
       config0.getConnectorConfigurations().put(liveConnector.getName(), liveConnector);
 
       config0.setBindingsDirectory(config0.getBindingsDirectory() + "_" + liveNode);

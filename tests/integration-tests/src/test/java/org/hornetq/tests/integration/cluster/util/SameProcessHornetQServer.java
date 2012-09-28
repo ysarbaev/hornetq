@@ -21,7 +21,7 @@ import junit.framework.Assert;
 import org.hornetq.api.core.Interceptor;
 import org.hornetq.api.core.client.ClientSession;
 import org.hornetq.core.server.HornetQServer;
-import org.hornetq.core.server.cluster.impl.ClusterManagerImpl;
+import org.hornetq.core.server.cluster.ClusterManager;
 import org.hornetq.tests.util.CountDownSessionFailureListener;
 
 /**
@@ -38,14 +38,10 @@ public class SameProcessHornetQServer implements TestableServer
       this.server = server;
    }
 
-   public boolean isInitialised()
+   @Override
+   public boolean isActive()
    {
-      return server.isInitialised();
-   }
-
-   public void destroy()
-   {
-      // To change body of implemented methods use File | Settings | File Templates.
+      return server.isActive();
    }
 
    public void setIdentity(String identity)
@@ -92,7 +88,7 @@ public class SameProcessHornetQServer implements TestableServer
          session.addFailureListener(listener);
       }
 
-      ClusterManagerImpl clusterManager = (ClusterManagerImpl) server.getClusterManager();
+      ClusterManager clusterManager = server.getClusterManager();
       clusterManager.flushExecutor();
       clusterManager.clear();
       Assert.assertTrue("server should be running!", server.isStarted());

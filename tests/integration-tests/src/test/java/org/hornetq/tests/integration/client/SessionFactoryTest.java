@@ -30,6 +30,7 @@ import org.hornetq.api.core.client.HornetQClient;
 import org.hornetq.api.core.client.ServerLocator;
 import org.hornetq.core.config.BroadcastGroupConfiguration;
 import org.hornetq.core.config.Configuration;
+import org.hornetq.core.config.UDPBroadcastGroupConfiguration;
 import org.hornetq.core.remoting.impl.invm.InVMAcceptorFactory;
 import org.hornetq.core.remoting.impl.invm.InVMConnectorFactory;
 import org.hornetq.core.server.HornetQServer;
@@ -48,7 +49,8 @@ import org.hornetq.tests.util.ServiceTestBase;
 public class SessionFactoryTest extends ServiceTestBase
 {
    private final DiscoveryGroupConfiguration groupConfiguration =
-            new DiscoveryGroupConfiguration(getUDPDiscoveryAddress(), getUDPDiscoveryPort());
+            new DiscoveryGroupConfiguration(HornetQClient.DEFAULT_DISCOVERY_INITIAL_WAIT_TIMEOUT, HornetQClient.DEFAULT_DISCOVERY_INITIAL_WAIT_TIMEOUT,
+                                            new UDPBroadcastGroupConfiguration(getUDPDiscoveryAddress(), getUDPDiscoveryPort(), null, -1));
 
    private HornetQServer liveService;
 
@@ -557,7 +559,6 @@ public class SessionFactoryTest extends ServiceTestBase
       liveConf.getAcceptorConfigurations().add(new TransportConfiguration(InVMAcceptorFactory.class.getName()));
       liveConf.getConnectorConfigurations().put(liveTC.getName(), liveTC);
       liveConf.setSharedStore(true);
-      liveConf.setClustered(true);
 
       final long broadcastPeriod = 250;
 
@@ -566,12 +567,13 @@ public class SessionFactoryTest extends ServiceTestBase
       final int localBindPort = 5432;
 
       BroadcastGroupConfiguration bcConfig1 = new BroadcastGroupConfiguration(bcGroupName,
-                                                                              null,
-                                                                              localBindPort,
+                                                                              broadcastPeriod,
+                                                                              Arrays.asList(liveTC.getName()),
+                                                                              new UDPBroadcastGroupConfiguration(
                                                                               getUDPDiscoveryAddress(),
                                                                               getUDPDiscoveryPort(),
-                                                                              broadcastPeriod,
-                                                                              Arrays.asList(liveTC.getName()));
+                                                                              null,
+                                                                              localBindPort));
 
       List<BroadcastGroupConfiguration> bcConfigs1 = new ArrayList<BroadcastGroupConfiguration>();
       bcConfigs1.add(bcConfig1);

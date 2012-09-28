@@ -23,28 +23,17 @@ import org.hornetq.api.core.TransportConfiguration;
 import org.hornetq.api.core.management.BroadcastGroupControl;
 import org.hornetq.core.config.BroadcastGroupConfiguration;
 import org.hornetq.core.config.Configuration;
-import org.hornetq.core.remoting.impl.invm.InVMAcceptorFactory;
-import org.hornetq.core.remoting.impl.netty.NettyConnectorFactory;
+import org.hornetq.core.config.UDPBroadcastGroupConfiguration;
 import org.hornetq.core.server.HornetQServer;
 import org.hornetq.core.server.HornetQServers;
 import org.hornetq.tests.util.RandomUtil;
 import org.hornetq.utils.json.JSONArray;
 
 /**
- * A AcceptorControlTest
- *
  * @author <a href="jmesnil@redhat.com">Jeff Mesnil</a>
- *
- * Created 11 dec. 2008 17:38:58
- *
- *
  */
 public class BroadcastGroupControlTest extends ManagementTestBase
 {
-
-   // Constants -----------------------------------------------------
-
-   // Attributes ----------------------------------------------------
 
    private HornetQServer service;
 
@@ -53,12 +42,9 @@ public class BroadcastGroupControlTest extends ManagementTestBase
    public static BroadcastGroupConfiguration randomBroadcastGroupConfiguration(final List<String> connectorInfos)
    {
       return new BroadcastGroupConfiguration(RandomUtil.randomString(),
-                                             null,
-                                             1198,
-                                             "231.7.7.7",
-                                             1199,
                                              RandomUtil.randomPositiveInt(),
-                                             connectorInfos);
+                                             connectorInfos,
+                                             new UDPBroadcastGroupConfiguration("231.7.7.7", 1199, null, 1198));
    }
 
    public static Pair<String, String> randomPair()
@@ -72,27 +58,27 @@ public class BroadcastGroupControlTest extends ManagementTestBase
 
    public void testAttributes() throws Exception
    {
-      TransportConfiguration connectorConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
+      TransportConfiguration connectorConfiguration = new TransportConfiguration(NETTY_CONNECTOR_FACTORY);
       List<String> connectorInfos = new ArrayList<String>();
       connectorInfos.add(connectorConfiguration.getName());
-      BroadcastGroupConfiguration broadcastGroupConfig = BroadcastGroupControlTest.randomBroadcastGroupConfiguration(connectorInfos);
+      BroadcastGroupConfiguration broadcastGroupConfig = (BroadcastGroupConfiguration) BroadcastGroupControlTest.randomBroadcastGroupConfiguration(connectorInfos);
 
       Configuration conf = createBasicConfig();
       conf.setSecurityEnabled(false);
       conf.setJMXManagementEnabled(true);
-      conf.setClustered(true);
       conf.getConnectorConfigurations().put(connectorConfiguration.getName(), connectorConfiguration);
       conf.getBroadcastGroupConfigurations().add(broadcastGroupConfig);
-      conf.getAcceptorConfigurations().add(new TransportConfiguration(InVMAcceptorFactory.class.getName()));
+      conf.getAcceptorConfigurations().add(new TransportConfiguration(INVM_ACCEPTOR_FACTORY));
       service = addServer(HornetQServers.newHornetQServer(conf, mbeanServer, false));
       service.start();
 
       BroadcastGroupControl broadcastGroupControl = createManagementControl(broadcastGroupConfig.getName());
 
+      UDPBroadcastGroupConfiguration udpCfg = (UDPBroadcastGroupConfiguration) broadcastGroupConfig.getEndpointFactoryConfiguration();
       Assert.assertEquals(broadcastGroupConfig.getName(), broadcastGroupControl.getName());
-      Assert.assertEquals(broadcastGroupConfig.getGroupAddress(), broadcastGroupControl.getGroupAddress());
-      Assert.assertEquals(broadcastGroupConfig.getGroupPort(), broadcastGroupControl.getGroupPort());
-      Assert.assertEquals(broadcastGroupConfig.getLocalBindPort(), broadcastGroupControl.getLocalBindPort());
+      Assert.assertEquals(udpCfg.getGroupAddress(), broadcastGroupControl.getGroupAddress());
+      Assert.assertEquals(udpCfg.getGroupPort(), broadcastGroupControl.getGroupPort());
+      Assert.assertEquals(udpCfg.getLocalBindPort(), broadcastGroupControl.getLocalBindPort());
       Assert.assertEquals(broadcastGroupConfig.getBroadcastPeriod(), broadcastGroupControl.getBroadcastPeriod());
 
       Object[] connectorPairs = broadcastGroupControl.getConnectorPairs();
@@ -111,7 +97,7 @@ public class BroadcastGroupControlTest extends ManagementTestBase
 
    public void testStartStop() throws Exception
    {
-      TransportConfiguration connectorConfiguration = new TransportConfiguration(NettyConnectorFactory.class.getName());
+      TransportConfiguration connectorConfiguration = new TransportConfiguration(NETTY_CONNECTOR_FACTORY);
       List<String> connectorInfos = new ArrayList<String>();
       connectorInfos.add(connectorConfiguration.getName());
       BroadcastGroupConfiguration broadcastGroupConfig = BroadcastGroupControlTest.randomBroadcastGroupConfiguration(connectorInfos);
@@ -119,10 +105,9 @@ public class BroadcastGroupControlTest extends ManagementTestBase
       Configuration conf = createBasicConfig();
       conf.setSecurityEnabled(false);
       conf.setJMXManagementEnabled(true);
-      conf.setClustered(true);
       conf.getConnectorConfigurations().put(connectorConfiguration.getName(), connectorConfiguration);
       conf.getBroadcastGroupConfigurations().add(broadcastGroupConfig);
-      conf.getAcceptorConfigurations().add(new TransportConfiguration(InVMAcceptorFactory.class.getName()));
+      conf.getAcceptorConfigurations().add(new TransportConfiguration(INVM_ACCEPTOR_FACTORY));
       service = addServer(HornetQServers.newHornetQServer(conf, mbeanServer, false));
       service.start();
 
@@ -142,8 +127,4 @@ public class BroadcastGroupControlTest extends ManagementTestBase
    {
       return ManagementControlHelper.createBroadcastGroupControl(name, mbeanServer);
    }
-   // Private -------------------------------------------------------
-
-   // Inner classes -------------------------------------------------
-
 }

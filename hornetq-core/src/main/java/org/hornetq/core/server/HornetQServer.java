@@ -54,10 +54,7 @@ import org.hornetq.utils.ExecutorFactory;
  * This interface defines the internal interface of the HornetQ Server exposed to other components
  * of the server.
  * <p>
- * The external management interface of the HornetQ Server is defined by the HornetQServerManagement
- * interface.
- * <p>
- * This interface is never exposed outside the HornetQ server, e.g. by JMX or other means
+ * This is not part of our public API.
  * @author <a href="tim.fox@jboss.com">Tim Fox</a>
  * @author <a href="ataylor@redhat.com">Andy Taylor</a>
  */
@@ -135,14 +132,14 @@ public interface HornetQServer extends HornetQComponent
 
    List<ServerSession> getSessions(String connectionID);
 
-   /** @return {@code true} if there is any session with this key */
-   boolean lookupSession(String metakey, String metavalue);
+   /** @return a session containing the meta-key and meata-value */
+   ServerSession lookupSession(String metakey, String metavalue);
 
    ClusterManager getClusterManager();
 
    SimpleString getNodeID();
 
-   boolean isInitialised();
+   boolean isActive();
 
    /**
     * Wait for server initialization.
@@ -153,7 +150,7 @@ public interface HornetQServer extends HornetQComponent
     *         timeout period, {@code false} otherwise.
     * @throws InterruptedException
     */
-   boolean waitForInitialization(long timeout, TimeUnit unit) throws InterruptedException;
+   boolean waitForActivation(long timeout, TimeUnit unit) throws InterruptedException;
 
    Queue createQueue(SimpleString address,
                      SimpleString queueName,
@@ -172,6 +169,8 @@ public interface HornetQServer extends HornetQComponent
    void destroyQueue(SimpleString queueName) throws Exception;
 
    void destroyQueue(SimpleString queueName, ServerSession session) throws Exception;
+
+   String destroyConnectionWithSessionMetadata(String metaKey, String metaValue) throws Exception;
 
    ScheduledExecutorService getScheduledPool();
 

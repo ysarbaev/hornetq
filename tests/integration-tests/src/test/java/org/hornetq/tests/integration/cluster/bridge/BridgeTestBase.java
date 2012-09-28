@@ -64,7 +64,6 @@ public abstract class BridgeTestBase extends UnitTestCase
                                                final NodeManager nodeManager) throws Exception
    {
       Configuration serviceConf = createBasicConfig();
-      serviceConf.setClustered(true);
       serviceConf.setSecurityEnabled(false);
       serviceConf.setSharedStore(true);
       serviceConf.setJournalType(getDefaultJournalType());
@@ -107,7 +106,6 @@ public abstract class BridgeTestBase extends UnitTestCase
                                                final NodeManager nodeManager) throws Exception
    {
       Configuration serviceConf = createBasicConfig();
-      serviceConf.setClustered(true);
       serviceConf.setSecurityEnabled(false);
       serviceConf.setBackup(true);
       serviceConf.setSharedStore(true);
@@ -147,7 +145,7 @@ public abstract class BridgeTestBase extends UnitTestCase
 
    protected void waitForServerStart(HornetQServer server) throws Exception
    {
-      if (!server.waitForInitialization(5000L, TimeUnit.MILLISECONDS))
+      if (!server.waitForActivation(5000L, TimeUnit.MILLISECONDS))
          throw new IllegalStateException("Timed out waiting for server starting = " + server);
    }
 

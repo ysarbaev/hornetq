@@ -23,28 +23,10 @@ package org.hornetq.tests.integration.cluster.topology;
 public class NettyHAClientTopologyWithDiscoveryTest extends HAClientTopologyWithDiscoveryTest
 {
 
-   // Constants -----------------------------------------------------
-
-   // Attributes ----------------------------------------------------
-
-   // Static --------------------------------------------------------
-
-   // Constructors --------------------------------------------------
-
-   // Public --------------------------------------------------------
-
-   // Package protected ---------------------------------------------
-
-   // Protected -----------------------------------------------------
-
    @Override
    protected boolean isNetty()
    {
       return true;
    }
-   
-   // Private -------------------------------------------------------
-
-   // Inner classes -------------------------------------------------
 
 }

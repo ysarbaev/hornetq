@@ -62,6 +62,7 @@ import org.hornetq.core.paging.cursor.PageSubscription;
 import org.hornetq.core.persistence.OperationContext;
 import org.hornetq.core.persistence.impl.journal.JournalStorageManager;
 import org.hornetq.core.protocol.core.Packet;
+import org.hornetq.core.protocol.core.impl.wireformat.BackupReplicationStartFailedMessage;
 import org.hornetq.core.protocol.stomp.StompConnection;
 import org.hornetq.core.protocol.stomp.StompFrame;
 import org.hornetq.core.server.cluster.Bridge;
@@ -275,6 +276,11 @@ public interface HornetQLogger extends BasicLogger
    @LogMessage(level = Logger.Level.INFO)
    @Message(id = 111044, value = "{0} to become \'live\'", format = Message.Format.MESSAGE_FORMAT)
    void becomingLive(HornetQServer server);
+
+   @LogMessage(level = Logger.Level.INFO)
+   @Message(id = 111045, value = "Configuration option {0} is deprecated. Consult the manual for details.",
+            format = Message.Format.MESSAGE_FORMAT)
+   void deprecatedConfigurationOption(String deprecatedOption);
 
    @LogMessage(level = Logger.Level.WARN)
    @Message(id = 112001, value = "HornetQServer is being finalized and has not been stopped. Please remember to stop the server before letting it go out of scope",
@@ -1224,6 +1230,10 @@ public interface HornetQLogger extends BasicLogger
             format = Message.Format.MESSAGE_FORMAT)
    void backupMovingDataAway(String oldPath, String newPath);
 
+   @LogMessage(level = Logger.Level.WARN)
+   @Message(id = 112217, value = "Error when trying to start replication {0}", format = Message.Format.MESSAGE_FORMAT)
+   void errorStartingReplication(BackupReplicationStartFailedMessage.BackupRegistrationProblem problem);
+
    @LogMessage(level = Logger.Level.ERROR)
    @Message(id = 114001, value = "Failed to call onMessage", format = Message.Format.MESSAGE_FORMAT)
    void onMessageError(@Cause Throwable e);
@@ -1547,7 +1557,13 @@ public interface HornetQLogger extends BasicLogger
 
    @LogMessage(level = Logger.Level.ERROR)
    @Message(id = 114082,
-            value = "Backup server that requested fail-back was not announced. Server will not stop for fail-back.",
-            format = Message.Format.MESSAGE_FORMAT)
+      value = "Backup server that requested fail-back was not announced. Server will not stop for fail-back.",
+      format = Message.Format.MESSAGE_FORMAT)
    void failbackMissedBackupAnnouncement();
+
+   @LogMessage(level = Logger.Level.INFO)
+   @Message(id = 114083,
+      value = "Can't find queue {0} while reloading PAGE_CURSOR_COMPLETE, deleting record now",
+      format = Message.Format.MESSAGE_FORMAT)
+   void cantFindQueueOnPageComplete(long queueID);
 }

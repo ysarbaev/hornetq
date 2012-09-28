@@ -13,6 +13,10 @@
 
 package org.hornetq.core.server.impl;
 
+import static org.hornetq.core.server.impl.QuorumManager.BACKUP_ACTIVATION.FAILURE_REPLICATING;
+import static org.hornetq.core.server.impl.QuorumManager.BACKUP_ACTIVATION.FAIL_OVER;
+import static org.hornetq.core.server.impl.QuorumManager.BACKUP_ACTIVATION.STOP;
+
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -39,14 +43,27 @@ import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 
-import org.hornetq.api.core.*;
+import org.hornetq.api.core.DiscoveryGroupConfiguration;
+import org.hornetq.api.core.HornetQAlreadyReplicatingException;
+import org.hornetq.api.core.HornetQException;
+import org.hornetq.api.core.HornetQExceptionType;
+import org.hornetq.api.core.HornetQIllegalStateException;
+import org.hornetq.api.core.HornetQInternalErrorException;
+import org.hornetq.api.core.Pair;
+import org.hornetq.api.core.SimpleString;
+import org.hornetq.api.core.TransportConfiguration;
 import org.hornetq.api.core.client.ClusterTopologyListener;
 import org.hornetq.api.core.client.HornetQClient;
 import org.hornetq.core.asyncio.impl.AsynchronousFileImpl;
 import org.hornetq.core.client.impl.ClientSessionFactoryImpl;
 import org.hornetq.core.client.impl.ClientSessionFactoryInternal;
 import org.hornetq.core.client.impl.ServerLocatorInternal;
-import org.hornetq.core.config.*;
+import org.hornetq.core.config.BridgeConfiguration;
+import org.hornetq.core.config.ClusterConnectionConfiguration;
+import org.hornetq.core.config.Configuration;
+import org.hornetq.core.config.ConfigurationUtils;
+import org.hornetq.core.config.CoreQueueConfiguration;
+import org.hornetq.core.config.DivertConfiguration;
 import org.hornetq.core.config.impl.ConfigurationImpl;
 import org.hornetq.core.deployers.Deployer;
 import org.hornetq.core.deployers.DeploymentManager;
@@ -112,7 +129,6 @@ import org.hornetq.core.server.ServerSession;
 import org.hornetq.core.server.cluster.ClusterConnection;
 import org.hornetq.core.server.cluster.ClusterManager;
 import org.hornetq.core.server.cluster.Transformer;
-import org.hornetq.core.server.cluster.impl.ClusterManagerImpl;
 import org.hornetq.core.server.group.GroupingHandler;
 import org.hornetq.core.server.group.impl.GroupBinding;
 import org.hornetq.core.server.group.impl.GroupingHandlerConfiguration;
@@ -137,14 +153,11 @@ import org.hornetq.utils.OrderedExecutorFactory;
 import org.hornetq.utils.SecurityFormatter;
 import org.hornetq.utils.VersionLoader;
 
-import static org.hornetq.core.server.impl.QuorumManager.BACKUP_ACTIVATION.*;
-
 /**
  * The HornetQ server implementation
  *
  * @author <a href="mailto:tim.fox@jboss.com">Tim Fox</a>
  * @author <a href="mailto:ataylor@redhat.com>Andy Taylor</a>
- * @version <tt>$Revision: 3543 $</tt> <p/> $Id: ServerPeer.java 3543 2008-01-07 22:31:58Z clebert.suconic@jboss.com $
  */
 public class HornetQServerImpl implements HornetQServer
 {
@@ -160,8 +173,13 @@ public class HornetQServerImpl implements HornetQServer
 
    enum SERVER_STATE
    {
-      /** start() has been called but components are not initialized */
-      INITIALIZING,
+      /**
+       * start() has been called but components are not initialized. The whole point of this state,
+       * is to be in a state which is different from {@link SERVER_STATE#STARTED} and
+       * {@link SERVER_STATE#STOPPED}, so that methods testing for these two values such as
+       * {@link #stop(boolean,boolean)} work as intended.
+       */
+      STARTING,
       /**
        * server is started. {@code server.isStarted()} returns {@code true}, and all assumptions
        * about it hold.
@@ -225,23 +243,19 @@ public class HornetQServerImpl implements HornetQServer
    private volatile DeploymentManager deploymentManager;
 
    private Deployer basicUserCredentialsDeployer;
-
    private Deployer addressSettingsDeployer;
-
    private Deployer queueDeployer;
-
    private Deployer securityDeployer;
 
    private final Map<String, ServerSession> sessions = new ConcurrentHashMap<String, ServerSession>();
 
    /**
-    * We guard the {@code initialised} field because if we restart a {@code HornetQServer}, we need
-    * to replace the {@code CountDownLatch} by a new one.
+    * We guard the {@code activationLatch} field because if we restart a {@code HornetQServer}, we
+    * need to replace the {@code CountDownLatch} by a new one.
     */
-   private final Object initialiseLock = new Object();
-   private CountDownLatch initialised = new CountDownLatch(1);
+   private final Object activationLatchGuard = new Object();
+   private CountDownLatch activationLatch = new CountDownLatch(1);
 
-   private final Object startUpLock = new Object();
    private final Object replicationLock = new Object();
 
    /**
@@ -359,7 +373,7 @@ public class HornetQServerImpl implements HornetQServer
       {
          cancelFailBackChecker = false;
       }
-      state = SERVER_STATE.INITIALIZING;
+      state = SERVER_STATE.STARTING;
       HornetQLogger.LOGGER.debug("Starting server " + this);
 
       OperationContextImpl.clearContext();
@@ -587,95 +601,91 @@ public class HornetQServerImpl implements HornetQServer
 
       synchronized (this)
       {
-         synchronized (startUpLock)
+         // Stop the deployers
+         if (configuration.isFileDeploymentEnabled())
          {
+            stopComponent(basicUserCredentialsDeployer);
+            stopComponent(addressSettingsDeployer);
+            stopComponent(queueDeployer);
+            stopComponent(securityDeployer);
+            stopComponent(deploymentManager);
+         }
 
-            // Stop the deployers
-            if (configuration.isFileDeploymentEnabled())
-            {
-               stopComponent(basicUserCredentialsDeployer);
-               stopComponent(addressSettingsDeployer);
-               stopComponent(queueDeployer);
-               stopComponent(securityDeployer);
-               stopComponent(deploymentManager);
-            }
-
-            if (managementService != null)
+         if (managementService != null)
             managementService.unregisterServer();
 
-            stopComponent(managementService);
-            stopComponent(replicationManager);
-            stopComponent(pagingManager);
-            stopComponent(replicationEndpoint);
+         stopComponent(managementService);
+         stopComponent(replicationManager);
+         stopComponent(pagingManager);
+         stopComponent(replicationEndpoint);
 
-            if (!criticalIOError)
+         if (!criticalIOError)
+         {
+            stopComponent(storageManager);
+         }
+         stopComponent(securityManager);
+         stopComponent(resourceManager);
+
+         stopComponent(postOffice);
+
+         if (scheduledPool != null)
+         {
+            // we just interrupt all running tasks, these are supposed to be pings and the like.
+            scheduledPool.shutdownNow();
+         }
+
+         stopComponent(memoryManager);
+
+         if (threadPool != null)
+         {
+            threadPool.shutdown();
+            try
             {
-               stopComponent(storageManager);
-            }
-            stopComponent(securityManager);
-            stopComponent(resourceManager);
-
-            stopComponent(postOffice);
-
-            if (scheduledPool != null)
-            {
-               // we just interrupt all running tasks, these are supposed to be pings and the like.
-               scheduledPool.shutdownNow();
-            }
-
-            stopComponent(memoryManager);
-
-            if (threadPool != null)
-            {
-               threadPool.shutdown();
-               try
+               if (!threadPool.awaitTermination(10, TimeUnit.SECONDS))
                {
-                  if (!threadPool.awaitTermination(10, TimeUnit.SECONDS))
+                  HornetQLogger.LOGGER.timedOutStoppingThreadpool(threadPool);
+                  for (Runnable r : threadPool.shutdownNow())
                   {
-                     HornetQLogger.LOGGER.timedOutStoppingThreadpool(threadPool);
-                     for (Runnable r : threadPool.shutdownNow())
-                     {
-                        HornetQLogger.LOGGER.debug("Cancelled the execution of " + r);
-                     }
+                     HornetQLogger.LOGGER.debug("Cancelled the execution of " + r);
                   }
                }
-               catch (InterruptedException e)
-               {
-                  // Ignore
-               }
             }
-
-            scheduledPool = null;
-            threadPool = null;
-
-            if (securityStore != null)
-               securityStore.stop();
-
-            threadPool = null;
-
-            scheduledPool = null;
-
-            pagingManager = null;
-            securityStore = null;
-            resourceManager = null;
-            replicationManager = null;
-            replicationEndpoint = null;
-            postOffice = null;
-            queueFactory = null;
-            resourceManager = null;
-            messagingServerControl = null;
-            memoryManager = null;
-
-            sessions.clear();
-
-            state = SERVER_STATE.STOPPED;
-            synchronized (initialiseLock)
+            catch (InterruptedException e)
             {
-               // replace the latch only if necessary. It could still be '1' in case of errors
-               // during start-up.
-               if (initialised.getCount() < 1)
-                  initialised = new CountDownLatch(1);
+               // Ignore
             }
+         }
+
+         scheduledPool = null;
+         threadPool = null;
+
+         if (securityStore != null)
+            securityStore.stop();
+
+         threadPool = null;
+
+         scheduledPool = null;
+
+         pagingManager = null;
+         securityStore = null;
+         resourceManager = null;
+         replicationManager = null;
+         replicationEndpoint = null;
+         postOffice = null;
+         queueFactory = null;
+         resourceManager = null;
+         messagingServerControl = null;
+         memoryManager = null;
+
+         sessions.clear();
+
+         state = SERVER_STATE.STOPPED;
+         synchronized (activationLatchGuard)
+         {
+            // replace the latch only if necessary. It could still be '1' in case of errors
+            // during start-up.
+            if (activationLatch.getCount() < 1)
+               activationLatch = new CountDownLatch(1);
          }
 
          // to display in the log message
@@ -731,6 +741,59 @@ public class HornetQServerImpl implements HornetQServer
       out.println(HornetQMessageBundle.BUNDLE.serverDescribe(identity, getClusterManager().describe()));
 
       return str.toString();
+   }
+
+   public String destroyConnectionWithSessionMetadata(String metaKey, String parameterValue) throws Exception
+   {
+      StringBuffer operationsExecuted = new StringBuffer();
+
+      try
+      {
+         operationsExecuted.append("**************************************************************************************************\n");
+         operationsExecuted.append(HornetQMessageBundle.BUNDLE.destroyConnectionWithSessionMetadataHeader(metaKey, parameterValue) + "\n");
+
+         Set<ServerSession> allSessions = getSessions();
+
+         ServerSession sessionFound = null;
+         for (ServerSession session : allSessions)
+         {
+            try
+            {
+               String value = session.getMetaData(metaKey);
+               if (value != null && value.equals(parameterValue))
+               {
+                  sessionFound = session;
+                  operationsExecuted.append(HornetQMessageBundle.BUNDLE.destroyConnectionWithSessionMetadataClosingConnection(sessionFound.toString()) + "\n");
+                  RemotingConnection conn = session.getRemotingConnection();
+                  if (conn != null)
+                  {
+                     conn.fail(HornetQMessageBundle.BUNDLE.destroyConnectionWithSessionMetadataSendException(metaKey, parameterValue));
+                  }
+                  session.close(true);
+                  sessions.remove(session.getName());
+               }
+            }
+            catch (Throwable e)
+            {
+               HornetQLogger.LOGGER.warn(e.getMessage(), e);
+            }
+         }
+
+         if (sessionFound == null)
+         {
+            operationsExecuted.append(HornetQMessageBundle.BUNDLE.destroyConnectionWithSessionMetadataNoSessionFound(metaKey, parameterValue) + "\n");
+         }
+
+         operationsExecuted.append("**************************************************************************************************");
+
+         return operationsExecuted.toString();
+      }
+      finally
+      {
+         // This operation is critical for the knowledge of the admin, so we need to add info logs for later knowledge
+         HornetQLogger.LOGGER.info(operationsExecuted.toString());
+      }
+
    }
 
    public void setIdentity(String identity)
@@ -864,6 +927,8 @@ public class HornetQServerImpl implements HornetQServer
 
    private synchronized ReplicationEndpoint connectToReplicationEndpoint(final Channel channel) throws Exception
    {
+      if (!isStarted())
+         return null;
       if (!configuration.isBackup())
       {
          throw HornetQMessageBundle.BUNDLE.serverNotBackupServer();
@@ -886,7 +951,7 @@ public class HornetQServerImpl implements HornetQServer
       sessions.remove(name);
    }
 
-   public boolean lookupSession(String key, String value)
+   public ServerSession lookupSession(String key, String value)
    {
       // getSessions is called here in a try to minimize locking the Server while this check is being done
       Set<ServerSession> allSessions = getSessions();
@@ -896,11 +961,11 @@ public class HornetQServerImpl implements HornetQServer
          String metaValue = session.getMetaData(key);
          if (metaValue != null && metaValue.equals(value))
          {
-            return true;
+            return session;
          }
       }
 
-      return false;
+      return null;
    }
 
    public synchronized List<ServerSession> getSessions(final String connectionID)
@@ -924,21 +989,21 @@ public class HornetQServerImpl implements HornetQServer
    }
 
    @Override
-   public boolean isInitialised()
+   public boolean isActive()
    {
-      synchronized (initialiseLock)
+      synchronized (activationLatchGuard)
       {
-         return initialised.getCount() < 1;
+         return activationLatch.getCount() < 1;
       }
    }
 
    @Override
-   public boolean waitForInitialization(long timeout, TimeUnit unit) throws InterruptedException
+   public boolean waitForActivation(long timeout, TimeUnit unit) throws InterruptedException
    {
       CountDownLatch latch;
-      synchronized (initialiseLock)
+      synchronized (activationLatchGuard)
       {
-         latch = initialised;
+         latch = activationLatch;
       }
       return latch.await(timeout, unit);
    }
@@ -1052,6 +1117,8 @@ public class HornetQServerImpl implements HornetQServer
 
       postOffice.removeBinding(queueName);
 
+      queue.destroyPaging();
+
       queue.deleteAllReferences();
 
       if (queue.isDurable())
@@ -1059,18 +1126,6 @@ public class HornetQServerImpl implements HornetQServer
          storageManager.deleteQueueBinding(queue.getID());
       }
 
-
-      if (queue.getPageSubscription() != null)
-      {
-         queue.getPageSubscription().close();
-      }
-
-      PageSubscription subs = queue.getPageSubscription();
-
-      if (subs != null)
-      {
-         subs.cleanupEntries(true);
-      }
    }
 
    public synchronized void registerActivateCallback(final ActivateCallback callback)
@@ -1275,6 +1330,9 @@ public class HornetQServerImpl implements HornetQServer
 
    /**
     * Starts everything apart from RemotingService and loading the data.
+    * <p>
+    * After optional intermediary steps, Part 1 is meant to be followed by part 2
+    * {@link #initialisePart2()}.
     */
    private synchronized boolean initialisePart1() throws Exception
    {
@@ -1358,15 +1416,9 @@ public class HornetQServerImpl implements HornetQServer
          addressSettingsRepository);
 
       // This can't be created until node id is set
-      clusterManager = new ClusterManagerImpl(executorFactory,
-         this,
-         postOffice,
-         scheduledPool,
-         managementService,
-         configuration,
-         nodeManager,
-         configuration.isBackup(),
-         configuration.isClustered());
+      clusterManager =
+               new ClusterManager(executorFactory, this, postOffice, scheduledPool, managementService, configuration,
+                                  nodeManager, configuration.isBackup());
 
       clusterManager.deploy();
 
@@ -1439,7 +1491,7 @@ public class HornetQServerImpl implements HornetQServer
    {
       // Load the journal and populate queues, transactions and caches in memory
 
-      if (state == SERVER_STATE.STOPPED)
+      if (state == SERVER_STATE.STOPPED || state == SERVER_STATE.STOPPING)
       {
          return;
       }
@@ -1498,7 +1550,7 @@ public class HornetQServerImpl implements HornetQServer
 
       remotingService.start();
 
-      initialised.countDown();
+      activationLatch.countDown();
    }
 
    /**
@@ -1739,7 +1791,7 @@ public class HornetQServerImpl implements HornetQServer
             }
             if (pageSubscription != null)
             {
-               pageSubscription.close();
+               pageSubscription.destroy();
             }
          }
          catch (Throwable ignored)
@@ -2126,7 +2178,6 @@ public class HornetQServerImpl implements HornetQServer
       private volatile QuorumManager quorumManager;
       private final boolean attemptFailBack;
       private String nodeID;
-      private TransportConfiguration liveConnector;
       ClientSessionFactoryInternal liveServerSessionFactory;
       private boolean closed;
 
@@ -2152,12 +2203,16 @@ public class HornetQServerImpl implements HornetQServer
                   return;
                //we use the cluster connection configuration to connect to the cluster to find the live node we want to
                //connect to.
-               ClusterConnectionConfiguration config = configuration.getClusterConfigurations().get(0);
+               ClusterConnectionConfiguration config =
+                        ConfigurationUtils.getReplicationClusterConfiguration(configuration);
                serverLocator0 = getFailbackLocator(config);
             }
             //if the cluster isn't available we want to hang around until it is
             serverLocator0.setReconnectAttempts(-1);
             serverLocator0.setInitialConnectAttempts(-1);
+
+            if (!initialisePart1())
+               return;
 
             synchronized (this)
             {
@@ -2178,10 +2233,7 @@ public class HornetQServerImpl implements HornetQServer
 
             nodeManager.startBackup();
 
-            if (!initialisePart1())
-               return;
             clusterManager.start();
-
 
             replicationEndpoint.setQuorumManager(quorumManager);
 
@@ -2214,7 +2266,6 @@ public class HornetQServerImpl implements HornetQServer
                {
                   liveServerSessionFactory
                        = (ClientSessionFactoryInternal) serverLocator0.createSessionFactory(possibleLive.getA(), 0, false);
-                  liveConnector = possibleLive.getA();
                }
                catch (Exception e)
                {
@@ -2224,7 +2275,6 @@ public class HornetQServerImpl implements HornetQServer
                      {
                         liveServerSessionFactory
                           = (ClientSessionFactoryInternal) serverLocator0.createSessionFactory(possibleLive.getB(), 0, false);
-                        liveConnector = possibleLive.getB();
                      } catch (Exception e1)
                      {
                         liveServerSessionFactory = null;
@@ -2233,7 +2283,10 @@ public class HornetQServerImpl implements HornetQServer
                }
                if (liveServerSessionFactory == null)
                {
-                  signal = FAILURE_REPLICATING;
+                  //its ok to retry here since we haven't started replication yet
+                  //it may just be the server has gone since discovery
+                  Thread.sleep(serverLocator0.getRetryInterval());
+                  signal = BACKUP_ACTIVATION.ALREADY_REPLICATING;
                   continue;
                }
 
@@ -2245,24 +2298,46 @@ public class HornetQServerImpl implements HornetQServer
                * {@link QuorumManager}
                */
                signal = quorumManager.waitForStatusChange();
-               //close this session factory, we're done with it
-               liveServerSessionFactory.close();
                //not sure why we stop this @Francisco
                stopComponent(replicationEndpoint);
                //time to give up
                if (!isStarted() || signal == STOP)
                   return;
                //time to fail over
-               if(signal == FAIL_OVER)
+               else if(signal == FAIL_OVER)
                   break;
+               //something has gone badly run restart from scratch
+               else if(signal == BACKUP_ACTIVATION.FAILURE_REPLICATING)
+               {
+                  Thread startThread = new Thread(new Runnable()
+                  {
+                     @Override
+                     public void run()
+                     {
+                        try
+                        {
+                           stop();
+                        }
+                        catch (Exception e)
+                        {
+                           HornetQLogger.LOGGER.errorRestartingBackupServer(e, HornetQServerImpl.this);
+                        }
+                     }
+                  });
+                  startThread.start();
+                  return;
+               }
                //ok, this live is no good, lets reset and try again
+               //close this session factory, we're done with it
+               liveServerSessionFactory.close();
                quorumManager.reset();
                if (replicationEndpoint.getChannel() != null)
                {
                   replicationEndpoint.getChannel().close();
                   replicationEndpoint.setChannel(null);
                }
-            } while (signal == FAILURE_REPLICATING);
+            }
+            while (signal == BACKUP_ACTIVATION.ALREADY_REPLICATING);
 
 
             if (!isRemoteBackupUpToDate())
@@ -2271,7 +2346,7 @@ public class HornetQServerImpl implements HornetQServer
             }
 
             configuration.setBackup(false);
-            synchronized (startUpLock)
+            synchronized (HornetQServerImpl.this)
             {
                if (!isStarted())
                   return;
@@ -2482,8 +2557,7 @@ public class HornetQServerImpl implements HornetQServer
 
          ServerLocatorInternal locator;
 
-         ClusterConnectionConfiguration config = configuration.getClusterConfigurations().get(0);
-
+         ClusterConnectionConfiguration config = ConfigurationUtils.getReplicationClusterConfiguration(configuration);
 
          locator = getFailbackLocator(config);
 
@@ -2535,41 +2609,40 @@ public class HornetQServerImpl implements HornetQServer
             }
          }
       }
+   }
 
-      final class NodeIdListener implements ClusterTopologyListener
+   static final class NodeIdListener implements ClusterTopologyListener
+   {
+      volatile boolean isNodePresent = false;
+
+      private final SimpleString nodeId;
+      private final CountDownLatch latch = new CountDownLatch(1);
+
+      public NodeIdListener(SimpleString nodeId)
       {
-         volatile boolean isNodePresent = false;
+         this.nodeId = nodeId;
+      }
 
-         private final SimpleString nodeId;
-         private final CountDownLatch latch = new CountDownLatch(1);
-
-         public NodeIdListener(SimpleString nodeId)
+      @Override
+      public void nodeUP(long eventUID, String nodeID, String nodeName,
+                         Pair<TransportConfiguration, TransportConfiguration> connectorPair, boolean last)
+      {
+         boolean isOurNodeId = nodeId != null && nodeID.equals(this.nodeId.toString());
+         if (isOurNodeId)
          {
-            this.nodeId = nodeId;
+            isNodePresent = true;
          }
-
-         @Override
-         public void nodeUP(long eventUID, String nodeID, String nodeName,
-                            Pair<TransportConfiguration, TransportConfiguration> connectorPair, boolean last)
+         if (isOurNodeId || last)
          {
-            boolean isOurNodeId = nodeId != null && nodeID.equals(this.nodeId.toString());
-            if (isOurNodeId)
-            {
-               isNodePresent = true;
-            }
-            if (isOurNodeId || last)
-            {
-               latch.countDown();
-            }
-         }
-
-         @Override
-         public void nodeDown(long eventUID, String nodeID)
-         {
-            // no-op
+            latch.countDown();
          }
       }
 
+      @Override
+      public void nodeDown(long eventUID, String nodeID)
+      {
+         // no-op
+      }
    }
 
    private TransportConfiguration[] connectorNameListToArray(final List<String> connectorNames)
@@ -2593,6 +2666,7 @@ public class HornetQServerImpl implements HornetQServer
 
       return tcConfigs;
    }
+
    /** This seems duplicate code all over the place, but for security reasons we can't let something like this to be open in a
     *  utility class, as it would be a door to load anything you like in a safe VM.
     *  For that reason any class trying to do a privileged block should do with the AccessController directly.
@@ -2668,6 +2742,8 @@ public class HornetQServerImpl implements HornetQServer
                }
                catch (Exception e)
                {
+                  if (state == HornetQServerImpl.SERVER_STATE.STARTED)
+                  {
                   /*
                    * The reasoning here is that the exception was either caused by (1) the
                    * (interaction with) the backup, or (2) by an IO Error at the storage. If (1), we
@@ -2675,11 +2751,10 @@ public class HornetQServerImpl implements HornetQServer
                    * will crash shortly.
                    */
                   HornetQLogger.LOGGER.errorStartingReplication(e);
-
+                  }
                   try
                   {
-                     if (replicationManager != null)
-                        replicationManager.stop();
+                     stopComponent(replicationManager);
                   }
                   catch (Exception hqe)
                   {

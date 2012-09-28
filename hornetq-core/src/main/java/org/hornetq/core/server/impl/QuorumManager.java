@@ -11,16 +11,18 @@ import org.hornetq.api.core.HornetQException;
 import org.hornetq.api.core.HornetQExceptionType;
 import org.hornetq.api.core.Pair;
 import org.hornetq.api.core.TransportConfiguration;
-import org.hornetq.api.core.client.*;
+import org.hornetq.api.core.client.ClientSession;
+import org.hornetq.api.core.client.ClientSessionFactory;
+import org.hornetq.api.core.client.ClusterTopologyListener;
+import org.hornetq.api.core.client.HornetQClient;
+import org.hornetq.api.core.client.ServerLocator;
 import org.hornetq.core.client.impl.ClientSessionFactoryInternal;
 import org.hornetq.core.client.impl.ServerLocatorImpl;
 import org.hornetq.core.client.impl.Topology;
 import org.hornetq.core.client.impl.TopologyMember;
 import org.hornetq.core.protocol.core.CoreRemotingConnection;
-import org.hornetq.core.remoting.CloseListener;
 import org.hornetq.core.remoting.FailureListener;
 import org.hornetq.core.server.HornetQLogger;
-import org.hornetq.core.server.HornetQServer;
 
 /**
  * Manages a quorum of servers used to determine whether a given server is running or not.
@@ -29,7 +31,7 @@ import org.hornetq.core.server.HornetQServer;
  * quorum will help a remote backup deciding whether to replace its 'live' server or to keep trying
  * to reconnect.
  */
-public final class QuorumManager implements FailureListener, CloseListener, ClusterTopologyListener
+public final class QuorumManager implements FailureListener, ClusterTopologyListener
 {
    private String targetServerID = "";
    private final ExecutorService executor;
@@ -43,6 +45,8 @@ public final class QuorumManager implements FailureListener, CloseListener, Clus
    /** safety parameter to make _sure_ we get out of await() */
    private static final int LATCH_TIMEOUT = 30;
    private static final int RECONNECT_ATTEMPTS = 5;
+
+   private final Object decisionGuard = new Object();
 
    public QuorumManager(ServerLocator serverLocator, ExecutorService executor, String identity)
    {
@@ -174,6 +178,12 @@ public final class QuorumManager implements FailureListener, CloseListener, Clus
       latch.countDown();
    }
 
+   public void notifyAlreadyReplicating()
+   {
+      signal = BACKUP_ACTIVATION.ALREADY_REPLICATING;
+      latch.countDown();
+   }
+
    /**
     * Attempts to connect to a given server.
     */
@@ -242,35 +252,36 @@ public final class QuorumManager implements FailureListener, CloseListener, Clus
 
    private void decideOnAction()
    {
-      if (signal != null)
-         return;
-      // Check if connection was reestablished by the sessionFactory:
-      if (sessionFactory.numConnections() > 0)
+      //we may get called via multiple paths so need to guard
+      synchronized (decisionGuard)
       {
-         return;
-      }
-      if (!isLiveDown())
-      {
-         try
+         if(signal == BACKUP_ACTIVATION.FAIL_OVER)
          {
-            // no point in repeating all the reconnection logic
-            sessionFactory.connect(RECONNECT_ATTEMPTS, false);
             return;
          }
-         catch (HornetQException e)
+         if (!isLiveDown())
          {
-            if (e.getType() != HornetQExceptionType.NOT_CONNECTED)
-               HornetQLogger.LOGGER.errorReConnecting(e);
+            try
+            {
+               // no point in repeating all the reconnection logic
+               sessionFactory.connect(RECONNECT_ATTEMPTS, false);
+               return;
+            }
+            catch (HornetQException e)
+            {
+               if (e.getType() != HornetQExceptionType.NOT_CONNECTED)
+                  HornetQLogger.LOGGER.errorReConnecting(e);
+            }
          }
+         // live is assumed to be down, backup fails-over
+         signal = BACKUP_ACTIVATION.FAIL_OVER;
       }
-      // live is assumed to be down, backup fails-over
-      signal = BACKUP_ACTIVATION.FAIL_OVER;
       latch.countDown();
    }
 
    enum BACKUP_ACTIVATION
    {
-      FAIL_OVER, FAILURE_REPLICATING, STOP;
+      FAIL_OVER, FAILURE_REPLICATING, ALREADY_REPLICATING, STOP;
    }
 
    /**
@@ -307,7 +318,6 @@ public final class QuorumManager implements FailureListener, CloseListener, Clus
       if (connection == null)
          return;
       connection.removeFailureListener(this);
-      connection.removeCloseListener(this);
    }
 
    /**
@@ -335,16 +345,11 @@ public final class QuorumManager implements FailureListener, CloseListener, Clus
    {
       this.connection = liveConnection;
       connection.addFailureListener(this);
-      connection.addCloseListener(this);
+      //connection.addCloseListener(this);
    }
 
    public synchronized void reset()
    {
       latch = new CountDownLatch(1);
-   }
-   @Override
-   public void connectionClosed()
-   {
-      decideOnAction();
    }
 }

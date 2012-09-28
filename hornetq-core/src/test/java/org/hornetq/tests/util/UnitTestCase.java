@@ -68,6 +68,7 @@ import org.hornetq.api.core.client.ServerLocator;
 import org.hornetq.core.asyncio.impl.AsynchronousFileImpl;
 import org.hornetq.core.client.impl.ClientSessionFactoryImpl;
 import org.hornetq.core.client.impl.ServerLocatorImpl;
+import org.hornetq.core.config.ClusterConnectionConfiguration;
 import org.hornetq.core.config.Configuration;
 import org.hornetq.core.config.impl.ConfigurationImpl;
 import org.hornetq.core.journal.PreparedTransactionInfo;
@@ -175,15 +176,26 @@ public abstract class UnitTestCase extends TestCase
       }
    }
 
-   protected static Configuration createClusteredDefaultConfig(final int index,
-                                                               final Map<String, Object> params,
-                                                               final String... acceptors) throws Exception
+   protected static final void basicClusterConnectionConfig(Configuration mainConfig,
+                                                                                      String connectorName,
+                                                                                      String... connectors)
    {
-      Configuration config = createDefaultConfig(index, params, acceptors);
+      ArrayList<String> connectors0 = new ArrayList<String>();
+      for (String c : connectors)
+      {
+         connectors0.add(c);
+      }
+      basicClusterConnectionConfig(mainConfig, connectorName, connectors0);
+   }
 
-      config.setClustered(true);
-
-      return config;
+   protected static final void basicClusterConnectionConfig(Configuration mainConfig,
+                                                                                      String connectorName,
+                                                                                      List<String> connectors)
+   {
+      ClusterConnectionConfiguration ccc =
+               new ClusterConnectionConfiguration("cluster1", "jms", connectorName, 10, false, false, 1, 1, connectors,
+                                                  false);
+      mainConfig.getClusterConfigurations().add(ccc);
    }
 
    protected static Configuration createDefaultConfig(final int index,
@@ -604,7 +616,7 @@ public abstract class UnitTestCase extends TestCase
       return connectors;
    }
 
-   protected static void checkFreePort(final int... ports)
+   protected final static void checkFreePort(final int... ports)
    {
       for (int port : ports)
       {
@@ -615,7 +627,7 @@ public abstract class UnitTestCase extends TestCase
          }
          catch (Exception e)
          {
-            throw new IllegalStateException("port " + port + " is bound");
+            throw new IllegalStateException("port " + port + " is bound", e);
          }
          finally
          {
@@ -632,10 +644,6 @@ public abstract class UnitTestCase extends TestCase
          }
       }
    }
-
-   // Constructors --------------------------------------------------
-
-   // Protected -----------------------------------------------------
 
    /**
     * @return the testDir
@@ -1590,7 +1598,7 @@ public abstract class UnitTestCase extends TestCase
       return sf;
    }
 
-   protected final HornetQServer addServer(HornetQServer server)
+   protected final HornetQServer addServer(final HornetQServer server)
    {
       if (server != null)
       {
@@ -1602,7 +1610,7 @@ public abstract class UnitTestCase extends TestCase
       return server;
    }
 
-   protected final ServerLocator addServerLocator(ServerLocator locator)
+   protected final ServerLocator addServerLocator(final ServerLocator locator)
    {
       if (locator != null)
       {
@@ -1614,7 +1622,7 @@ public abstract class UnitTestCase extends TestCase
       return locator;
    }
 
-   protected final ClientSession addClientSession(ClientSession session)
+   protected final ClientSession addClientSession(final ClientSession session)
    {
       if (session != null)
       {
@@ -1626,7 +1634,7 @@ public abstract class UnitTestCase extends TestCase
       return session;
    }
 
-   protected final ClientConsumer addClientConsumer(ClientConsumer consumer)
+   protected final ClientConsumer addClientConsumer(final ClientConsumer consumer)
    {
       if (consumer != null)
       {
@@ -1638,7 +1646,7 @@ public abstract class UnitTestCase extends TestCase
       return consumer;
    }
 
-   protected final ClientProducer addClientProducer(ClientProducer producer)
+   protected final ClientProducer addClientProducer(final ClientProducer producer)
    {
       if (producer != null)
       {
@@ -1650,7 +1658,7 @@ public abstract class UnitTestCase extends TestCase
       return producer;
    }
 
-   protected final void addHornetQComponent(HornetQComponent component)
+   protected final void addHornetQComponent(final HornetQComponent component)
    {
       if (component != null)
       {
@@ -1661,7 +1669,7 @@ public abstract class UnitTestCase extends TestCase
       }
    }
 
-   protected final ClientSessionFactory addSessionFactory(ClientSessionFactory sf)
+   protected final ClientSessionFactory addSessionFactory(final ClientSessionFactory sf)
    {
       if (sf != null)
       {

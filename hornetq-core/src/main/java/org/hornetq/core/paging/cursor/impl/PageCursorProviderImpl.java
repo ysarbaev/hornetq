@@ -91,13 +91,14 @@ public class PageCursorProviderImpl implements PageCursorProvider
       {
          HornetQLogger.LOGGER.debug(this.pagingStore.getAddress() + " creating subscription " + cursorID + " with filter " + filter, new Exception ("trace"));
       }
-      PageSubscription activeCursor = activeCursors.get(cursorID);
-      if (activeCursor != null)
+
+      if (activeCursors.containsKey(cursorID))
       {
          throw new IllegalStateException("Cursor " + cursorID + " had already been created");
       }
 
-      activeCursor = new PageSubscriptionImpl(this, pagingStore, storageManager, executor, filter, cursorID, persistent);
+      PageSubscription activeCursor =
+               new PageSubscriptionImpl(this, pagingStore, storageManager, executor, filter, cursorID, persistent);
       activeCursors.put(cursorID, activeCursor);
       return activeCursor;
    }
@@ -347,11 +348,12 @@ public class PageCursorProviderImpl implements PageCursorProvider
                HornetQLogger.LOGGER.debug("Asserting cleanup for address " + this.pagingStore.getAddress());
             }
 
-            ArrayList<PageSubscription> cursorList = new ArrayList<PageSubscription>();
-            cursorList.addAll(activeCursors.values());
+            ArrayList<PageSubscription> cursorList = cloneSubscriptions();
 
             long minPage = checkMinPage(cursorList);
 
+            // if the current page is being written...
+            // on that case we need to move to verify it in a different way
             if (minPage == pagingStore.getCurrentWritingPage() && pagingStore.getCurrentPage().getNumberOfMessages() > 0)
             {
                boolean complete = true;
@@ -382,20 +384,21 @@ public class PageCursorProviderImpl implements PageCursorProvider
                   return;
                }
 
+               // All the pages on the cursor are complete.. so we will cleanup everything and store a bookmark
                if (complete)
                {
 
                   if (HornetQLogger.LOGGER.isDebugEnabled())
                   {
                      HornetQLogger.LOGGER.debug("Address " + pagingStore.getAddress() +
-                           " is leaving page mode as all messages are consumed and acknowledged from the page store");
+                        " is leaving page mode as all messages are consumed and acknowledged from the page store");
                   }
 
                   pagingStore.forceAnotherPage();
 
                   Page currentPage = pagingStore.getCurrentPage();
 
-                  storePositions(cursorList, currentPage);
+                  storeBookmark(cursorList, currentPage);
 
                   pagingStore.stopPaging();
 
@@ -419,7 +422,7 @@ public class PageCursorProviderImpl implements PageCursorProvider
             }
 
             if (pagingStore.getNumberOfPages() == 0 || pagingStore.getNumberOfPages() == 1 &&
-                pagingStore.getCurrentPage().getNumberOfMessages() == 0)
+               pagingStore.getCurrentPage().getNumberOfMessages() == 0)
             {
                pagingStore.stopPaging();
             }
@@ -428,10 +431,10 @@ public class PageCursorProviderImpl implements PageCursorProvider
                if (HornetQLogger.LOGGER.isTraceEnabled())
                {
                   HornetQLogger.LOGGER.trace("Couldn't cleanup page on address " + this.pagingStore.getAddress() +
-                            " as numberOfPages == " +
-                            pagingStore.getNumberOfPages() +
-                            " and currentPage.numberOfMessages = " +
-                            pagingStore.getCurrentPage().getNumberOfMessages());
+                     " as numberOfPages == " +
+                     pagingStore.getNumberOfPages() +
+                     " and currentPage.numberOfMessages = " +
+                     pagingStore.getCurrentPage().getNumberOfMessages());
                }
             }
          }
@@ -496,6 +499,7 @@ public class PageCursorProviderImpl implements PageCursorProvider
             }
 
             depagedPage.delete(pgdMessages);
+            onDeletePage(depagedPage);
 
             synchronized (softCache)
             {
@@ -512,11 +516,30 @@ public class PageCursorProviderImpl implements PageCursorProvider
    }
 
    /**
+    * @return
+    */
+   private synchronized ArrayList<PageSubscription> cloneSubscriptions()
+   {
+      ArrayList<PageSubscription> cursorList = new ArrayList<PageSubscription>();
+      cursorList.addAll(activeCursors.values());
+      return cursorList;
+   }
+
+   protected void onDeletePage(Page deletedPage) throws Exception
+   {
+      List<PageSubscription> subscriptions = cloneSubscriptions();
+      for (PageSubscription subs: subscriptions)
+      {
+         subs.onDeletePage(deletedPage);
+      }
+   }
+
+   /**
     * @param cursorList
     * @param currentPage
     * @throws Exception
     */
-   private void storePositions(ArrayList<PageSubscription> cursorList, Page currentPage) throws Exception
+   protected void storeBookmark(ArrayList<PageSubscription> cursorList, Page currentPage) throws Exception
    {
       try
       {
